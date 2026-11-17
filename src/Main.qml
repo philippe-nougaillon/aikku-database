@@ -1652,14 +1652,9 @@ ApplicationWindow {
             }
 
             DialogPanel {
+                anchors.centerIn: parent
                 width: 420
                 height: tableDlgCol.implicitHeight + 48
-                x: contentHover.hovered
-                    ? Math.max(24, Math.min(parent.width - width - 24, contentHover.point.position.x - width / 2))
-                    : (parent.width - width) / 2
-                y: contentHover.hovered
-                    ? Math.max(24, Math.min(parent.height - height - 24, contentHover.point.position.y - height / 2))
-                    : (parent.height - height) / 2
 
                 MouseArea { anchors.fill: parent }
 
