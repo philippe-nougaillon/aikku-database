@@ -1,4 +1,4 @@
-// aikku — SQLite custom tables manager inspired by Aikku Access.
+// aikku-database — SQLite custom tables manager inspired by Aikku Access.
 
 #include <QDir>
 #include <QFileInfo>
@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
         qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
 
     QGuiApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("aikku"));
+    app.setApplicationName(QStringLiteral("aikku-database"));
     app.setApplicationVersion(QStringLiteral("0.1.0"));
 
     const QStringList args = app.arguments();
@@ -38,10 +38,10 @@ int main(int argc, char *argv[]) {
         return Cli::run(args);
     }
 
-    // Matches the window to aikku.desktop, so the compositor (Wayland app_id)
+    // Matches the window to aikku-database.desktop, so the compositor (Wayland app_id)
     // and the launcher pick up the installed icon.
-    app.setDesktopFileName(QStringLiteral("aikku"));
-    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("aikku")));
+    app.setDesktopFileName(QStringLiteral("aikku-database"));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("aikku-database")));
 
     QQuickStyle::setStyle(QStringLiteral("Material"));
 

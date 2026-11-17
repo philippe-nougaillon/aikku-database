@@ -10,7 +10,7 @@ ApplicationWindow {
     minimumWidth: 780
     minimumHeight: 520
     visible: true
-    title: backend.currentTableName === "" ? "aikku" : "aikku — " + backend.currentTableName
+    title: backend.currentTableName === "" ? "aikku-database" : "aikku-database — " + backend.currentTableName
     color: "#0e0e10"
 
     Material.theme: Material.Dark

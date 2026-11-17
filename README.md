@@ -1,8 +1,8 @@
-# Aikku
+# Aikku Database
 
 A keyboard-first custom SQLite tables and collections manager for Omarchy, inspired by [Aikku Access](https://github.com/philippe-nougaillon/aikku-access). Model tables, define typed attributes, enter and edit records through dynamically generated forms, search and filter, compute formulas and footer aggregations, and import or export CSV collections.
 
-![Aikku Screenshot](screenshot.png)
+![Aikku Database Screenshot](screenshot.png)
 
 ## Features
 
@@ -10,7 +10,7 @@ A keyboard-first custom SQLite tables and collections manager for Omarchy, inspi
 - **Dynamic Record Forms**: Automatically builds an input form from each table's ordered attributes with required-field validation and "Save & add another" (`submit_and_refill`).
 - **Search, Quick Filters & Sorting**: Full-text search across records, per-attribute quick filters (`filtre` flag) and date-range filters, column sorting, and sticky footer `Sum` / `Average` aggregations.
 - **CSV Import & Export**: Import CSV files into a new table (auto-detecting `Text`, `Number`, `Date`, and `Yes / No` columns) or export any table to CSV.
-- **Single SQLite Database**: Stores all tables, fields, and values in `~/.local/share/aikku/aikku.sqlite` (or any `.sqlite` file passed on the command line or opened via the XDG desktop portal).
+- **Single SQLite Database**: Stores all tables, fields, and values in `~/.local/share/aikku-database/aikku-database.sqlite` (or any `.sqlite` file passed on the command line or opened via the XDG desktop portal).
 - **Omarchy Native**: Follows the Omarchy accent color, Hyprland window rounding, and system language live.
 
 ## Keyboard Shortcuts
@@ -35,14 +35,14 @@ A keyboard-first custom SQLite tables and collections manager for Omarchy, inspi
 
 ## Headless CLI
 
-`aikku` includes headless commands for scripts and coding agents:
+`aikku-database` includes headless commands for scripts and coding agents:
 
 ```bash
-aikku tables [--db <path>] [--json]
-aikku check [--db <path>] [--json]
-aikku import <file.csv> [--db <path>] [--json]
-aikku export <table-name> <output.csv> [--db <path>] [--json]
-aikku skill [install]
+aikku-database tables [--db <path>] [--json]
+aikku-database check [--db <path>] [--json]
+aikku-database import <file.csv> [--db <path>] [--json]
+aikku-database export <table-name> <output.csv> [--db <path>] [--json]
+aikku-database skill [install]
 ```
 
 ## Build, Test & Install

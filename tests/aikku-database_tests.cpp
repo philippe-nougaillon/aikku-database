@@ -342,4 +342,4 @@ private:
 };
 
 QTEST_MAIN(AikkuTests)
-#include "aikku_tests.moc"
+#include "aikku-database_tests.moc"

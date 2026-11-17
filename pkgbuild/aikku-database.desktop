@@ -1,13 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Aikku
-Name[da]=Aikku
-Name[fr]=Aikku
+Name=Aikku Database
+Name[da]=Aikku Database
+Name[fr]=Aikku Database
 Comment=Custom SQLite tables and collections manager
 Comment[da]=Brugerdefinerede SQLite-tabeller og samlinger
 Comment[fr]=Gestionnaire de tables et collections sur mesure SQLite
-Exec=aikku %f
-Icon=aikku
+Exec=aikku-database %f
+Icon=aikku-database
 Terminal=false
 Categories=Utility;Database;Office;
-StartupWMClass=aikku
+StartupWMClass=aikku-database

@@ -191,7 +191,7 @@ Backend::Backend(const QString &databasePath, FilePicker *filePicker, QObject *p
     if (path.isEmpty()) {
         const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
         QDir().mkpath(dataDir);
-        path = dataDir + QStringLiteral("/aikku.sqlite");
+        path = dataDir + QStringLiteral("/aikku-database.sqlite");
     }
     initDatabase(path);
 }

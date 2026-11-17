@@ -13,26 +13,26 @@
 
 namespace {
 const char *kBundledSkill = R"SKILL(---
-name: aikku
+name: aikku-database
 description: |
-  Manage custom SQLite tables, attributes, and records with Aikku (a desktop
-  tables manager inspired by Aikku Access). Use when creating, inspecting,
-  importing, or exporting custom data tables or CSV collections.
+  Manage custom SQLite tables, attributes, and records with Aikku Database (a
+  desktop tables manager inspired by Aikku Access). Use when creating,
+  inspecting, importing, or exporting custom data tables or CSV collections.
 ---
 
-# Aikku
+# Aikku Database
 
-Aikku stores custom collections (tables, typed attributes, and records) in a
-single SQLite database (`~/.local/share/aikku/aikku.sqlite` by default) and can
-import/export CSV files without needing a display.
+Aikku Database stores custom collections (tables, typed attributes, and records)
+in a single SQLite database (`~/.local/share/aikku-database/aikku-database.sqlite`
+by default) and can import/export CSV files without needing a display.
 
 ## Commands
 
-- `aikku tables [--db <path>] [--json]` — List all tables, field counts, and record counts.
-- `aikku check [--db <path>] [--json]` — Validate tables, required fields, and formulas.
-- `aikku import <file.csv> [--table <name>] [--db <path>] [--json]` — Import a CSV file into a new or existing table.
-- `aikku export <table-name> <output.csv> [--db <path>] [--json]` — Export a table to CSV.
-- `aikku open [database.sqlite|file.csv]` — Open the desktop GUI.
+- `aikku-database tables [--db <path>] [--json]` — List all tables, field counts, and record counts.
+- `aikku-database check [--db <path>] [--json]` — Validate tables, required fields, and formulas.
+- `aikku-database import <file.csv> [--table <name>] [--db <path>] [--json]` — Import a CSV file into a new or existing table.
+- `aikku-database export <table-name> <output.csv> [--db <path>] [--json]` — Export a table to CSV.
+- `aikku-database open [database.sqlite|file.csv]` — Open the desktop GUI.
 )SKILL";
 
 void printError(const QString &msg, bool json) {
@@ -42,7 +42,7 @@ void printError(const QString &msg, bool json) {
         obj.insert(QStringLiteral("error"), msg);
         QTextStream(stderr) << QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact)) << "\n";
     } else {
-        QTextStream(stderr) << "aikku: " << msg << "\n";
+        QTextStream(stderr) << "aikku-database: " << msg << "\n";
     }
 }
 } // namespace
@@ -82,7 +82,7 @@ int run(const QStringList &args) {
 
     if (cmd == QLatin1String("help")) {
         QTextStream out(stdout);
-        out << "Usage: aikku [command] [options]\n\n"
+        out << "Usage: aikku-database [command] [options]\n\n"
             << "Editor:\n"
             << "  open [file.sqlite|file.csv]          Open the desktop application\n\n"
             << "Headless commands:\n"
@@ -96,7 +96,7 @@ int run(const QStringList &args) {
 
     if (cmd == QLatin1String("skill")) {
         if (args.size() >= 3 && args.at(2) == QLatin1String("install")) {
-            const QString targetDir = QDir::homePath() + QStringLiteral("/.config/omarchy/skills/aikku");
+            const QString targetDir = QDir::homePath() + QStringLiteral("/.config/omarchy/skills/aikku-database");
             QDir().mkpath(targetDir);
             const QString targetFile = targetDir + QStringLiteral("/SKILL.md");
             QSaveFile sf(targetFile);

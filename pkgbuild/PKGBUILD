@@ -1,4 +1,4 @@
-pkgname=aikku
+pkgname=aikku-database
 pkgver=0.1.0
 pkgrel=1
 pkgdesc='Custom SQLite tables manager inspired by Aikku Access'
@@ -16,8 +16,8 @@ build() {
 
 package() {
   cd "$startdir/.."
-  install -Dm755 build/aikku "$pkgdir/usr/bin/aikku"
+  install -Dm755 build/aikku-database "$pkgdir/usr/bin/aikku-database"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 "$startdir/aikku.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/aikku.svg"
-  install -Dm644 "$startdir/aikku.desktop" "$pkgdir/usr/share/applications/aikku.desktop"
+  install -Dm644 "$startdir/aikku-database.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/aikku-database.svg"
+  install -Dm644 "$startdir/aikku-database.desktop" "$pkgdir/usr/share/applications/aikku-database.desktop"
 }

@@ -1,6 +1,6 @@
 QT += core gui qml quick quickcontrols2 sql testlib dbus
 CONFIG += c++17 testcase
-TARGET = aikku_tests
+TARGET = aikku-database_tests
 TEMPLATE = app
 
 INCLUDEPATH += ../src
@@ -12,7 +12,7 @@ HEADERS += \
     ../src/translator.h
 
 SOURCES += \
-    aikku_tests.cpp \
+    aikku-database_tests.cpp \
     ../src/backend.cpp \
     ../src/theme.cpp \
     ../src/translator.cpp
