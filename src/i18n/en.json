@@ -1,0 +1,7 @@
+{
+  "%n tables": { "one": "%n table", "other": "%n tables" },
+  "%n records": { "one": "%n record", "other": "%n records" },
+  "%n fields": { "one": "%n field", "other": "%n fields" },
+  "Imported %n records from CSV.": { "one": "Imported %n record from CSV.", "other": "Imported %n records from CSV." },
+  "Exported %n records to \"%1\".": { "one": "Exported %n record to \"%1\".", "other": "Exported %n records to \"%1\"." }
+}
