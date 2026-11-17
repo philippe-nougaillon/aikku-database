@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -290,9 +291,49 @@ private slots:
         QVERIFY(!grab.isNull());
         QCOMPARE(grab.width(), 1120);
         QCOMPARE(grab.height(), 720);
+
+        // Open Add Record dialog via Space / openRecordDialog(0) and verify form fields are visible and interactive.
+        QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, 0));
+        QTest::qWait(80);
+        QCOMPARE(window->property("recordDialogVisible").toBool(), true);
+
+        auto *panel = findVisualItem(window->contentItem(), "recordDialogPanel");
+        auto *fieldsCol = findVisualItem(window->contentItem(), "recordFieldsCol");
+        QVERIFY(panel != nullptr && fieldsCol != nullptr);
+        QVERIFY(panel->height() > 300);
+        QVERIFY(fieldsCol->height() > 200);
+
+        auto *input0 = findVisualItem(fieldsCol, "recordFieldInput_0");
+        auto *input3 = findVisualItem(fieldsCol, "recordFieldInput_3");
+        auto *input4 = findVisualItem(fieldsCol, "recordFieldInput_4");
+        QVERIFY(input0 != nullptr && input3 != nullptr && input4 != nullptr);
+        QVERIFY(input0->width() > 200);
+        QVERIFY(input0->isVisible());
+
+        // Enter values into the form inputs and submit.
+        input0->setProperty("text", "Framework Laptop 13");
+        input3->setProperty("text", "3");
+        input4->setProperty("text", "1100");
+        QTest::qWait(40);
+
+        QMetaObject::invokeMethod(window, "submitRecordDialog", Q_ARG(QVariant, false));
+        QTest::qWait(50);
+        QCOMPARE(window->property("recordDialogVisible").toBool(), false);
+        QCOMPARE(backend.recordCount(), 6);
     }
 
 private:
+    static QQuickItem *findVisualItem(QQuickItem *item, const QString &name) {
+        if (!item)
+            return nullptr;
+        if (item->objectName() == name)
+            return item;
+        for (QQuickItem *child : item->childItems()) {
+            if (QQuickItem *found = findVisualItem(child, name))
+                return found;
+        }
+        return nullptr;
+    }
     static void write(const QString &path, const QByteArray &contents) {
         QFile file(path);
         QVERIFY(file.open(QIODevice::WriteOnly));

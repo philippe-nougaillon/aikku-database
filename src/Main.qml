@@ -38,6 +38,7 @@ ApplicationWindow {
     property int editingRecordIndex: 0
     property var recordFormValues: ({})
     property bool recordDirty: false
+    signal recordFormReset()
 
     property bool deleteTableConfirmVisible: false
     property bool deleteRecordConfirmVisible: false
@@ -177,11 +178,15 @@ ApplicationWindow {
         }
         backend.clearMessages()
         editingRecordIndex = recIdx
+        var initial = {}
+        var flist = backend.fields
         if (recIdx > 0) {
-            recordFormValues = backend.recordValues(recIdx)
+            var existing = backend.recordValues(recIdx)
+            for (var j = 0; j < flist.length; ++j) {
+                var k = String(flist[j].id)
+                initial[k] = existing[k] !== undefined ? String(existing[k]) : ""
+            }
         } else {
-            var initial = {}
-            var flist = backend.fields
             for (var i = 0; i < flist.length; ++i) {
                 var f = flist[i]
                 if (f.datatype === "YesNo")
@@ -195,10 +200,18 @@ ApplicationWindow {
                 else
                     initial[String(f.id)] = ""
             }
-            recordFormValues = initial
         }
+        recordFormValues = initial
         recordDirty = false
         recordDialogVisible = true
+        recordFormReset()
+        Qt.callLater(function() {
+            for (var idx = 0; idx < recordFieldsRepeater.count; ++idx) {
+                var item = recordFieldsRepeater.itemAt(idx)
+                if (item && item.focusInput && item.focusInput())
+                    break
+            }
+        })
     }
 
     function setRecordFieldValue(fieldId, val) {
@@ -2165,6 +2178,8 @@ ApplicationWindow {
 
         // --- Dialog 3: Dynamic Record Form (New / Edit Record) ---
         Rectangle {
+            id: recordModalOverlay
+            objectName: "recordModalOverlay"
             visible: win.recordDialogVisible
             anchors.fill: parent
             color: "#cc000000"
@@ -2175,9 +2190,11 @@ ApplicationWindow {
             }
 
             DialogPanel {
+                id: recordDialogPanel
+                objectName: "recordDialogPanel"
                 anchors.centerIn: parent
                 width: Math.min(640, parent.width - 64)
-                height: Math.min(580, recordDlgCol.implicitHeight + 48)
+                height: Math.min(parent.height - 48, Math.max(240, recordFieldsCol.implicitHeight + 148))
 
                 MouseArea { anchors.fill: parent }
 
@@ -2188,6 +2205,7 @@ ApplicationWindow {
                     spacing: 14
 
                     Label {
+                        Layout.fillWidth: true
                         text: win.editingRecordIndex > 0
                             ? qsTr("Edit record #%1 — %2").arg(win.editingRecordIndex).arg(backend.currentTableName)
                             : qsTr("New record — %1").arg(backend.currentTableName)
@@ -2198,39 +2216,55 @@ ApplicationWindow {
                     }
 
                     Flickable {
+                        id: recordFlick
+                        objectName: "recordFlick"
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        contentWidth: width
                         contentHeight: recordFieldsCol.implicitHeight
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
 
                         ColumnLayout {
                             id: recordFieldsCol
-                            width: parent.width
+                            objectName: "recordFieldsCol"
+                            width: recordFlick.width
                             spacing: 12
 
                             Repeater {
+                                id: recordFieldsRepeater
                                 model: backend.fields
 
                                 ColumnLayout {
+                                    id: fieldDelegate
                                     required property var modelData
+                                    required property int index
                                     Layout.fillWidth: true
                                     spacing: 4
 
+                                    readonly property int fieldId: modelData.id
                                     readonly property string fieldKey: String(modelData.id)
                                     readonly property string currentValue: win.recordFormValues[fieldKey] !== undefined
                                         ? String(win.recordFormValues[fieldKey]) : ""
 
+                                    function focusInput() {
+                                        if (textInputBox.visible) {
+                                            valTextInput.forceActiveFocus()
+                                            return true
+                                        }
+                                        return false
+                                    }
+
                                     RowLayout {
                                         spacing: 6
                                         Label {
-                                            text: modelData.name + (modelData.obligatoire ? " *" : "")
+                                            text: fieldDelegate.modelData.name + (fieldDelegate.modelData.obligatoire ? " *" : "")
                                             color: "#dcdce4"
                                             font.pixelSize: 12
                                             font.weight: Font.DemiBold
                                         }
                                         Label {
-                                            text: "(" + win.datatypeLabel(modelData.datatype) + ")"
+                                            text: "(" + win.datatypeLabel(fieldDelegate.modelData.datatype) + ")"
                                             color: "#74747e"
                                             font.pixelSize: 11
                                         }
@@ -2238,7 +2272,7 @@ ApplicationWindow {
 
                                     // Yes / No Switch
                                     RowLayout {
-                                        visible: modelData.datatype === "YesNo"
+                                        visible: fieldDelegate.modelData.datatype === "YesNo"
                                         spacing: 8
 
                                         Repeater {
@@ -2252,7 +2286,7 @@ ApplicationWindow {
                                                 height: 30
                                                 width: ynChoiceLbl.implicitWidth + 24
                                                 radius: Math.min(4, theme.radius)
-                                                readonly property bool active: currentValue === modelData.val
+                                                readonly property bool active: fieldDelegate.currentValue === modelData.val
                                                 color: active ? theme.accent : "#18181f"
                                                 border.width: 1
                                                 border.color: active ? theme.accent : "#34343e"
@@ -2266,26 +2300,26 @@ ApplicationWindow {
                                                     font.weight: parent.active ? Font.DemiBold : Font.Normal
                                                 }
                                                 HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                                TapHandler { onTapped: win.setRecordFieldValue(parent.parent.modelData.id, modelData.val) }
+                                                TapHandler { onTapped: win.setRecordFieldValue(fieldDelegate.fieldId, modelData.val) }
                                             }
                                         }
                                     }
 
                                     // List or Status Choice Chips
                                     Flow {
-                                        visible: modelData.datatype === "List" || modelData.datatype === "Status"
+                                        visible: fieldDelegate.modelData.datatype === "List" || fieldDelegate.modelData.datatype === "Status"
                                         Layout.fillWidth: true
                                         spacing: 6
 
                                         Repeater {
-                                            model: modelData.choices || []
+                                            model: fieldDelegate.modelData.choices || []
 
                                             Rectangle {
                                                 required property string modelData
                                                 height: 28
                                                 width: choiceChipLbl.implicitWidth + 18
                                                 radius: Math.min(4, theme.radius)
-                                                readonly property bool active: currentValue === modelData
+                                                readonly property bool active: fieldDelegate.currentValue === modelData
                                                 color: active ? theme.accent : "#18181f"
                                                 border.width: 1
                                                 border.color: active ? theme.accent : "#34343e"
@@ -2299,14 +2333,14 @@ ApplicationWindow {
                                                     font.weight: parent.active ? Font.DemiBold : Font.Normal
                                                 }
                                                 HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                                TapHandler { onTapped: win.setRecordFieldValue(parent.parent.modelData.id, modelData) }
+                                                TapHandler { onTapped: win.setRecordFieldValue(fieldDelegate.fieldId, modelData) }
                                             }
                                         }
                                     }
 
                                     // Stars (1..5) Selector
                                     RowLayout {
-                                        visible: modelData.datatype === "Stars"
+                                        visible: fieldDelegate.modelData.datatype === "Stars"
                                         spacing: 6
 
                                         Repeater {
@@ -2316,7 +2350,7 @@ ApplicationWindow {
                                                 width: 34; height: 30
                                                 radius: Math.min(4, theme.radius)
                                                 readonly property int starNum: index + 1
-                                                readonly property bool filled: Number(currentValue || 0) >= starNum
+                                                readonly property bool filled: Number(fieldDelegate.currentValue || 0) >= starNum
                                                 color: filled ? "#2b2512" : "#18181f"
                                                 border.width: 1
                                                 border.color: filled ? "#fbbf24" : "#34343e"
@@ -2328,14 +2362,14 @@ ApplicationWindow {
                                                     font.pixelSize: 15
                                                 }
                                                 HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                                TapHandler { onTapped: win.setRecordFieldValue(parent.parent.modelData.id, String(starNum)) }
+                                                TapHandler { onTapped: win.setRecordFieldValue(fieldDelegate.fieldId, String(starNum)) }
                                             }
                                         }
                                     }
 
                                     // Formula Read-only Banner
                                     Rectangle {
-                                        visible: modelData.datatype === "Formula"
+                                        visible: fieldDelegate.modelData.datatype === "Formula"
                                         Layout.fillWidth: true
                                         height: 34
                                         radius: Math.min(4, theme.radius)
@@ -2347,7 +2381,7 @@ ApplicationWindow {
                                             anchors.fill: parent
                                             anchors.leftMargin: 10
                                             verticalAlignment: Text.AlignVCenter
-                                            text: qsTr("Calculated automatically: %1").arg(modelData.items)
+                                            text: qsTr("Calculated automatically: %1").arg(fieldDelegate.modelData.items)
                                             color: theme.accent
                                             font.pixelSize: 12
                                             font.family: "monospace"
@@ -2356,9 +2390,10 @@ ApplicationWindow {
 
                                     // Standard Text / Number / Euros / Date / Tags / URL / Email Input
                                     Rectangle {
-                                        visible: modelData.datatype !== "YesNo" && modelData.datatype !== "List"
-                                            && modelData.datatype !== "Status" && modelData.datatype !== "Stars"
-                                            && modelData.datatype !== "Formula"
+                                        id: textInputBox
+                                        visible: fieldDelegate.modelData.datatype !== "YesNo" && fieldDelegate.modelData.datatype !== "List"
+                                            && fieldDelegate.modelData.datatype !== "Status" && fieldDelegate.modelData.datatype !== "Stars"
+                                            && fieldDelegate.modelData.datatype !== "Formula"
                                         Layout.fillWidth: true
                                         height: 36
                                         radius: Math.min(4, theme.radius)
@@ -2368,6 +2403,7 @@ ApplicationWindow {
 
                                         TextInput {
                                             id: valTextInput
+                                            objectName: "recordFieldInput_" + fieldDelegate.index
                                             anchors.fill: parent
                                             anchors.leftMargin: 10
                                             anchors.rightMargin: 10
@@ -2375,16 +2411,26 @@ ApplicationWindow {
                                             color: "white"
                                             font.pixelSize: 13
                                             selectByMouse: true
-                                            text: currentValue
-                                            onTextEdited: win.setRecordFieldValue(modelData.id, text)
+                                            Component.onCompleted: text = fieldDelegate.currentValue
+                                            onTextChanged: {
+                                                if (text !== fieldDelegate.currentValue)
+                                                    win.setRecordFieldValue(fieldDelegate.fieldId, text)
+                                            }
                                             Keys.onReturnPressed: win.submitRecordDialog(false)
                                             Keys.onEnterPressed: win.submitRecordDialog(false)
+
+                                            Connections {
+                                                target: win
+                                                function onRecordFormReset() {
+                                                    valTextInput.text = fieldDelegate.currentValue
+                                                }
+                                            }
 
                                             Label {
                                                 anchors.fill: parent
                                                 verticalAlignment: Text.AlignVCenter
                                                 visible: valTextInput.text === "" && !valTextInput.activeFocus
-                                                text: modelData.datatype === "Date" ? "YYYY-MM-DD" : modelData.name
+                                                text: fieldDelegate.modelData.datatype === "Date" ? "YYYY-MM-DD" : fieldDelegate.modelData.name
                                                 color: "#62626c"
                                                 font.pixelSize: 12
                                             }
