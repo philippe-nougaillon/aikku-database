@@ -75,6 +75,31 @@ private slots:
         QVERIFY(backend.updateTable(tId, "Partners", false));
         QCOMPARE(backend.currentTableName(), QString("Partners"));
         QCOMPARE(backend.currentTableLifo(), false);
+
+        // Add records to Partners table.
+        QVariantMap p1;
+        p1.insert(QString::number(fName), "Acme Corp");
+        QCOMPARE(backend.saveRecord(0, p1), 1);
+        QVariantMap p2;
+        p2.insert(QString::number(fName), "Beta Studio");
+        QCOMPARE(backend.saveRecord(0, p2), 2);
+
+        // Create an Orders table with a Relation attribute pointing to Partners:Name.
+        const int ordersId = backend.createTable("Orders", true);
+        QVERIFY(ordersId > 0);
+        // Invalid relation to non-existent table fails.
+        QCOMPARE(backend.addField("Client", "Relation", "MissingTable"), 0);
+        QVERIFY(!backend.errorMessage().isEmpty());
+
+        const int fClientRel = backend.addField("Client", "Relation", "Partners:Name", true, true);
+        QVERIFY(fClientRel > 0);
+        const QStringList relChoices = backend.fieldDetails(fClientRel).value("choices").toStringList();
+        QCOMPARE(relChoices, (QStringList{"Acme Corp", "Beta Studio"}));
+
+        QVariantMap order1;
+        order1.insert(QString::number(fClientRel), "Acme Corp");
+        QCOMPARE(backend.saveRecord(0, order1), 1);
+        QCOMPARE(backend.recordValues(1).value(QString::number(fClientRel)).toString(), QString("Acme Corp"));
     }
 
     void recordsFormulasFiltersSortingAndAggregations() {

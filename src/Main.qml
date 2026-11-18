@@ -58,12 +58,65 @@ ApplicationWindow {
         { code: "YesNo", label: qsTr("Yes / No") },
         { code: "List", label: qsTr("List") },
         { code: "Status", label: qsTr("Status") },
+        { code: "Relation", label: qsTr("Relation") },
         { code: "Formula", label: qsTr("Formula") },
         { code: "Tags", label: qsTr("Tags") },
         { code: "Stars", label: qsTr("Stars") },
         { code: "URL", label: qsTr("URL") },
         { code: "Email", label: qsTr("Email") }
     ]
+
+    readonly property string relationTargetTable: {
+        var raw = fieldFormItems.trim()
+        var idx = raw.indexOf(":")
+        return (idx >= 0 ? raw.slice(0, idx) : raw).trim()
+    }
+
+    readonly property string relationTargetField: {
+        var raw = fieldFormItems.trim()
+        var idx = raw.indexOf(":")
+        return idx >= 0 ? raw.slice(idx + 1).trim() : ""
+    }
+
+    readonly property var relationTargetFieldNames: {
+        var target = relationTargetTable.toLowerCase()
+        if (target === "")
+            return []
+        var tlist = backend.tables
+        for (var i = 0; i < tlist.length; ++i) {
+            if (String(tlist[i].name).toLowerCase() === target)
+                return tlist[i].fieldNames || []
+        }
+        return []
+    }
+
+    function setRelationTarget(tableName, fieldName) {
+        var t = String(tableName || "").trim()
+        var f = String(fieldName || "").trim()
+        if (t === "") {
+            fieldFormItems = ""
+            return
+        }
+        if (f === "") {
+            var tlist = backend.tables
+            for (var i = 0; i < tlist.length; ++i) {
+                if (String(tlist[i].name).toLowerCase() === t.toLowerCase()) {
+                    var fnames = tlist[i].fieldNames || []
+                    for (var j = 0; j < fnames.length; ++j) {
+                        var low = String(fnames[j]).toLowerCase()
+                        if (low === "name" || low === "nom" || low === "title") {
+                            f = fnames[j]
+                            break
+                        }
+                    }
+                    if (f === "" && fnames.length > 0)
+                        f = fnames[0]
+                    break
+                }
+            }
+        }
+        fieldFormItems = f !== "" ? (t + ":" + f) : t
+    }
 
     function datatypeLabel(code) {
         var _ = translator.language
@@ -223,7 +276,7 @@ ApplicationWindow {
                     initial[String(f.id)] = Qt.formatDate(new Date(), "yyyy-MM-dd")
                 else if (f.datatype === "Stars")
                     initial[String(f.id)] = "3"
-                else if ((f.datatype === "List" || f.datatype === "Status") && f.choices && f.choices.length > 0)
+                else if ((f.datatype === "List" || f.datatype === "Status" || (f.datatype === "Relation" && f.obligatoire)) && f.choices && f.choices.length > 0)
                     initial[String(f.id)] = f.choices[0]
                 else
                     initial[String(f.id)] = ""
@@ -2060,7 +2113,22 @@ ApplicationWindow {
                                             font.weight: parent.active ? Font.DemiBold : Font.Normal
                                         }
                                         HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                        TapHandler { onTapped: win.fieldFormDatatype = modelData.code }
+                                        TapHandler {
+                                            onTapped: {
+                                                win.fieldFormDatatype = modelData.code
+                                                if (modelData.code === "Relation" && win.relationTargetTable === "") {
+                                                    var tlist = backend.tables
+                                                    for (var i = 0; i < tlist.length; ++i) {
+                                                        if (tlist[i].id !== backend.currentTableId) {
+                                                            win.setRelationTarget(tlist[i].name, "")
+                                                            break
+                                                        }
+                                                    }
+                                                    if (win.relationTargetTable === "" && tlist.length > 0)
+                                                        win.setRelationTarget(tlist[0].name, "")
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -2137,12 +2205,106 @@ ApplicationWindow {
                                                     return qsTr("Options: Todo, Doing, Done")
                                                 if (win.fieldFormDatatype === "Status")
                                                     return qsTr("Status: Open:blue, Closed:green")
+                                                if (win.fieldFormDatatype === "Relation")
+                                                    return qsTr("Relation: Table:Attribute (e.g. Clients:name)")
                                                 if (win.fieldFormDatatype === "Formula")
                                                     return qsTr("Formula: [Qty] * [Unit Price]")
                                                 return qsTr("Optional parameters")
                                             }
                                             color: "#6a6a74"
                                             font.pixelSize: 12
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Relation Target Table & Attribute Picker
+                            ColumnLayout {
+                                visible: win.fieldFormDatatype === "Relation"
+                                Layout.fillWidth: true
+                                spacing: 6
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    Label {
+                                        text: qsTr("Source table:")
+                                        color: "#9a9aa4"
+                                        font.pixelSize: 12
+                                    }
+
+                                    Flow {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+
+                                        Repeater {
+                                            model: backend.tables
+
+                                            Rectangle {
+                                                required property var modelData
+                                                height: 24
+                                                width: relTblLbl.implicitWidth + 14
+                                                radius: Math.min(4, theme.radius)
+                                                readonly property bool active: win.relationTargetTable.toLowerCase() === String(modelData.name).toLowerCase()
+                                                color: active ? theme.accent : "#22222a"
+                                                border.width: 1
+                                                border.color: active ? theme.accent : "#34343e"
+
+                                                Label {
+                                                    id: relTblLbl
+                                                    anchors.centerIn: parent
+                                                    text: modelData.name
+                                                    color: parent.active ? theme.accentForeground : "#d4d4dc"
+                                                    font.pixelSize: 11
+                                                    font.weight: parent.active ? Font.DemiBold : Font.Normal
+                                                }
+                                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                                TapHandler { onTapped: win.setRelationTarget(modelData.name, "") }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                RowLayout {
+                                    visible: win.relationTargetFieldNames.length > 0
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    Label {
+                                        text: qsTr("Display attribute:")
+                                        color: "#9a9aa4"
+                                        font.pixelSize: 12
+                                    }
+
+                                    Flow {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+
+                                        Repeater {
+                                            model: win.relationTargetFieldNames
+
+                                            Rectangle {
+                                                required property string modelData
+                                                height: 24
+                                                width: relFldLbl.implicitWidth + 14
+                                                radius: Math.min(4, theme.radius)
+                                                readonly property bool active: win.relationTargetField.toLowerCase() === modelData.toLowerCase()
+                                                color: active ? "#2d2d38" : "#1c1c22"
+                                                border.width: 1
+                                                border.color: active ? theme.accent : "#32323c"
+
+                                                Label {
+                                                    id: relFldLbl
+                                                    anchors.centerIn: parent
+                                                    text: modelData
+                                                    color: parent.active ? theme.accent : "#b8b8c2"
+                                                    font.pixelSize: 11
+                                                    font.weight: parent.active ? Font.DemiBold : Font.Normal
+                                                }
+                                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                                TapHandler { onTapped: win.setRelationTarget(win.relationTargetTable, modelData) }
+                                            }
                                         }
                                     }
                                 }
@@ -2386,11 +2548,35 @@ ApplicationWindow {
                                         }
                                     }
 
-                                    // List or Status Choice Chips
+                                    // List, Status, or Relation Choice Chips
                                     Flow {
                                         visible: fieldDelegate.modelData.datatype === "List" || fieldDelegate.modelData.datatype === "Status"
+                                            || fieldDelegate.modelData.datatype === "Relation"
                                         Layout.fillWidth: true
                                         spacing: 6
+
+                                        Rectangle {
+                                            visible: fieldDelegate.modelData.datatype === "Relation" && !fieldDelegate.modelData.obligatoire
+                                                && (fieldDelegate.modelData.choices || []).length > 0
+                                            height: 28
+                                            width: noneRelLbl.implicitWidth + 18
+                                            radius: Math.min(4, theme.radius)
+                                            readonly property bool active: fieldDelegate.currentValue === ""
+                                            color: active ? theme.accent : "#18181f"
+                                            border.width: 1
+                                            border.color: active ? theme.accent : "#34343e"
+
+                                            Label {
+                                                id: noneRelLbl
+                                                anchors.centerIn: parent
+                                                text: qsTr("None")
+                                                color: parent.active ? theme.accentForeground : "#a0a0aa"
+                                                font.pixelSize: 12
+                                                font.weight: parent.active ? Font.DemiBold : Font.Normal
+                                            }
+                                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                            TapHandler { onTapped: win.setRecordFieldValue(fieldDelegate.fieldId, "") }
+                                        }
 
                                         Repeater {
                                             model: fieldDelegate.modelData.choices || []
@@ -2416,6 +2602,13 @@ ApplicationWindow {
                                                 HoverHandler { cursorShape: Qt.PointingHandCursor }
                                                 TapHandler { onTapped: win.setRecordFieldValue(fieldDelegate.fieldId, modelData) }
                                             }
+                                        }
+
+                                        Label {
+                                            visible: fieldDelegate.modelData.datatype === "Relation" && (fieldDelegate.modelData.choices || []).length === 0
+                                            text: qsTr("No records found in related table (%1)").arg(fieldDelegate.modelData.items)
+                                            color: "#8a8a94"
+                                            font.pixelSize: 12
                                         }
                                     }
 
@@ -2473,8 +2666,8 @@ ApplicationWindow {
                                     Rectangle {
                                         id: textInputBox
                                         visible: fieldDelegate.modelData.datatype !== "YesNo" && fieldDelegate.modelData.datatype !== "List"
-                                            && fieldDelegate.modelData.datatype !== "Status" && fieldDelegate.modelData.datatype !== "Stars"
-                                            && fieldDelegate.modelData.datatype !== "Formula"
+                                            && fieldDelegate.modelData.datatype !== "Status" && fieldDelegate.modelData.datatype !== "Relation"
+                                            && fieldDelegate.modelData.datatype !== "Stars" && fieldDelegate.modelData.datatype !== "Formula"
                                         Layout.fillWidth: true
                                         height: 36
                                         radius: Math.min(4, theme.radius)

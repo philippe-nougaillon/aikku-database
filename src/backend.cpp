@@ -366,6 +366,7 @@ void Backend::reloadTables() {
             item.insert(QStringLiteral("lifo"), lifo);
             item.insert(QStringLiteral("recordCount"), activeCount);
             item.insert(QStringLiteral("fieldCount"), fieldNames.size());
+            item.insert(QStringLiteral("fieldNames"), fieldNames);
             item.insert(QStringLiteral("fieldSummary"), fieldNames.join(QStringLiteral(", ")));
             item.insert(QStringLiteral("updatedAt"), formatTimestamp(lastUpd));
             nextTables.append(item);
@@ -639,7 +640,7 @@ void Backend::reloadFieldsAndRecords() {
         fmap.insert(QStringLiteral("operation"), fr.operation);
         fmap.insert(QStringLiteral("description"), fr.description);
 
-        // Parse choices for List or Status.
+        // Parse choices for List, Status, or Relation.
         QStringList choices;
         QVariantMap statusColors;
         if (fr.datatype == QLatin1String("List")) {
@@ -656,6 +657,64 @@ void Backend::reloadFieldsAndRecords() {
                 if (!label.isEmpty()) {
                     choices.append(label);
                     statusColors.insert(label, statusBadgeColor(colorName));
+                }
+            }
+        } else if (fr.datatype == QLatin1String("Relation")) {
+            const QString spec = fr.items.trimmed();
+            const int sep = spec.indexOf(QLatin1Char(':'));
+            const QString targetTableName = (sep >= 0 ? spec.left(sep) : spec).trimmed();
+            const QString targetFieldName = (sep >= 0 ? spec.mid(sep + 1) : QString()).trimmed();
+
+            if (!targetTableName.isEmpty()) {
+                int targetTableId = 0;
+                QSqlQuery tq(db);
+                tq.prepare(QStringLiteral("SELECT id FROM tables WHERE LOWER(name) = LOWER(?) LIMIT 1"));
+                tq.addBindValue(targetTableName);
+                if (tq.exec() && tq.next())
+                    targetTableId = tq.value(0).toInt();
+
+                if (targetTableId > 0) {
+                    int targetFieldId = 0;
+                    QSqlQuery tfq(db);
+                    tfq.prepare(QStringLiteral("SELECT id, name FROM fields WHERE table_id = ? ORDER BY row_order ASC, id ASC"));
+                    tfq.addBindValue(targetTableId);
+                    if (tfq.exec()) {
+                        int firstFieldId = 0;
+                        int nameLikeFieldId = 0;
+                        while (tfq.next()) {
+                            const int fId = tfq.value(0).toInt();
+                            const QString fName = tfq.value(1).toString().trimmed();
+                            if (firstFieldId == 0)
+                                firstFieldId = fId;
+                            if (!targetFieldName.isEmpty() && fName.compare(targetFieldName, Qt::CaseInsensitive) == 0) {
+                                targetFieldId = fId;
+                                break;
+                            }
+                            if (nameLikeFieldId == 0 &&
+                                (fName.compare(QLatin1String("name"), Qt::CaseInsensitive) == 0 ||
+                                 fName.compare(QLatin1String("nom"), Qt::CaseInsensitive) == 0 ||
+                                 fName.compare(QLatin1String("title"), Qt::CaseInsensitive) == 0)) {
+                                nameLikeFieldId = fId;
+                            }
+                        }
+                        if (targetFieldId == 0)
+                            targetFieldId = (nameLikeFieldId > 0) ? nameLikeFieldId : firstFieldId;
+                    }
+
+                    if (targetFieldId > 0) {
+                        QSqlQuery rvq(db);
+                        rvq.prepare(QStringLiteral(
+                            "SELECT DISTINCT data FROM \"values\" WHERE field_id = ? AND TRIM(data) != '' "
+                            "ORDER BY data COLLATE NOCASE ASC"));
+                        rvq.addBindValue(targetFieldId);
+                        if (rvq.exec()) {
+                            while (rvq.next()) {
+                                const QString val = rvq.value(0).toString().trimmed();
+                                if (!val.isEmpty() && !choices.contains(val))
+                                    choices.append(val);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1110,6 +1169,49 @@ bool Backend::validateFieldOptions(const QString &datatype, const QString &items
             if (errorOut)
                 *errorOut = tr("Formula fields must reference attributes in brackets (e.g. \"[Qty] * [Unit Price]\").");
             return false;
+        }
+    } else if (datatype == QLatin1String("Relation")) {
+        const int sep = trimmed.indexOf(QLatin1Char(':'));
+        const QString targetTableName = (sep >= 0 ? trimmed.left(sep) : trimmed).trimmed();
+        const QString targetFieldName = (sep >= 0 ? trimmed.mid(sep + 1) : QString()).trimmed();
+        if (targetTableName.isEmpty()) {
+            if (errorOut)
+                *errorOut = tr("Relation fields require a target table name (e.g. \"Clients\" or \"Clients:name\").");
+            return false;
+        }
+
+        QVariantMap foundTable;
+        for (const QVariant &tv : m_tables) {
+            const QVariantMap tmap = tv.toMap();
+            if (tmap.value(QStringLiteral("name")).toString().compare(targetTableName, Qt::CaseInsensitive) == 0) {
+                foundTable = tmap;
+                break;
+            }
+        }
+        if (foundTable.isEmpty()) {
+            if (errorOut)
+                *errorOut = tr("Target table \"%1\" does not exist.").arg(targetTableName);
+            return false;
+        }
+        const QStringList fieldNames = foundTable.value(QStringLiteral("fieldNames")).toStringList();
+        if (fieldNames.isEmpty()) {
+            if (errorOut)
+                *errorOut = tr("Target table \"%1\" has no attributes.").arg(targetTableName);
+            return false;
+        }
+        if (!targetFieldName.isEmpty()) {
+            bool matchedField = false;
+            for (const QString &fn : fieldNames) {
+                if (fn.compare(targetFieldName, Qt::CaseInsensitive) == 0) {
+                    matchedField = true;
+                    break;
+                }
+            }
+            if (!matchedField) {
+                if (errorOut)
+                    *errorOut = tr("Table \"%1\" has no attribute named \"%2\".").arg(targetTableName, targetFieldName);
+                return false;
+            }
         }
     }
     return true;
