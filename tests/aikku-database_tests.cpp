@@ -365,6 +365,34 @@ private slots:
 
         const int emailColW = backend.fieldDetails(fEmail).value("contentWidth").toInt();
         QVERIFY2(emailColW >= 300, qPrintable(QString("Expected email column width >= 300, got %1").arg(emailColW)));
+
+        // Open Manage Table Attributes dialog and select "Relation" datatype.
+        QMetaObject::invokeMethod(window, "openFieldsDialog");
+        QTest::qWait(50);
+        QCOMPARE(window->property("fieldsDialogVisible").toBool(), true);
+
+        auto *fieldsDialogPanel = findVisualItem(window->contentItem(), "fieldsDialogPanel");
+        auto *fieldFormBox = findVisualItem(window->contentItem(), "fieldFormBox");
+        auto *requiredCheck = findVisualItem(window->contentItem(), "fieldFormRequiredCheck");
+        QVERIFY(fieldsDialogPanel != nullptr && fieldFormBox != nullptr && requiredCheck != nullptr);
+
+        window->setProperty("fieldFormDatatype", "Relation");
+        QMetaObject::invokeMethod(window, "setRelationTarget", Q_ARG(QVariant, backend.currentTableName()), Q_ARG(QVariant, ""));
+        QTest::qWait(50);
+
+        const QPointF reqTopLeftInBox = requiredCheck->mapToItem(fieldFormBox, QPointF(0, 0));
+        const QPointF reqBottomRightInBox = requiredCheck->mapToItem(fieldFormBox, QPointF(requiredCheck->width(), requiredCheck->height()));
+        QVERIFY2(reqTopLeftInBox.x() >= 0 && reqTopLeftInBox.y() >= 0
+                 && reqBottomRightInBox.x() <= fieldFormBox->width()
+                 && reqBottomRightInBox.y() <= fieldFormBox->height(),
+                 qPrintable(QString("Expected Required checkbox inside attribute form box (%1x%2), got bottom-right (%3,%4)")
+                            .arg(fieldFormBox->width()).arg(fieldFormBox->height())
+                            .arg(reqBottomRightInBox.x()).arg(reqBottomRightInBox.y())));
+
+        const QPointF boxBottomRightInPanel = fieldFormBox->mapToItem(fieldsDialogPanel, QPointF(fieldFormBox->width(), fieldFormBox->height()));
+        QVERIFY2(boxBottomRightInPanel.y() <= fieldsDialogPanel->height(),
+                 qPrintable(QString("Expected attribute form box bottom (%1) <= dialog panel height (%2)")
+                            .arg(boxBottomRightInPanel.y()).arg(fieldsDialogPanel->height())));
     }
 
 private:

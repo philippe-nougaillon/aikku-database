@@ -1906,6 +1906,8 @@ ApplicationWindow {
             }
 
             DialogPanel {
+                id: fieldsDialogPanel
+                objectName: "fieldsDialogPanel"
                 anchors.centerIn: parent
                 width: Math.min(820, parent.width - 64)
                 height: Math.min(620, parent.height - 48)
@@ -2066,8 +2068,12 @@ ApplicationWindow {
 
                     // Add / Update Attribute Form
                     Rectangle {
+                        id: fieldFormBox
+                        objectName: "fieldFormBox"
                         Layout.fillWidth: true
-                        height: fieldFormCol.implicitHeight + 24
+                        implicitHeight: fieldFormCol.implicitHeight + 24
+                        Layout.preferredHeight: fieldFormCol.implicitHeight + 24
+                        Layout.minimumHeight: fieldFormCol.implicitHeight + 24
                         radius: Math.min(4, theme.radius)
                         color: "#16161b"
                         border.width: 1
@@ -2140,6 +2146,7 @@ ApplicationWindow {
                                 // Attribute Name Input
                                 Rectangle {
                                     Layout.preferredWidth: 220
+                                    implicitHeight: 34
                                     height: 34
                                     radius: Math.min(4, theme.radius)
                                     color: "#101014"
@@ -2175,6 +2182,7 @@ ApplicationWindow {
                                 // Parameters / Options Input (for List, Status, Formula)
                                 Rectangle {
                                     Layout.fillWidth: true
+                                    implicitHeight: 34
                                     height: 34
                                     radius: Math.min(4, theme.radius)
                                     color: "#101014"
@@ -2312,13 +2320,18 @@ ApplicationWindow {
 
                             // Flags (Required, Filter, Footer Aggregation, Submit)
                             RowLayout {
+                                id: fieldFormFlagsRow
+                                objectName: "fieldFormFlagsRow"
                                 Layout.fillWidth: true
                                 spacing: 14
 
                                 // Required toggle
                                 RowLayout {
+                                    id: fieldFormRequiredCheck
+                                    objectName: "fieldFormRequiredCheck"
                                     spacing: 6
                                     Rectangle {
+                                        implicitWidth: 18; implicitHeight: 18
                                         width: 18; height: 18
                                         radius: Math.min(4, theme.radius)
                                         color: win.fieldFormObligatoire ? theme.accent : "#18181d"
@@ -2342,6 +2355,7 @@ ApplicationWindow {
                                 RowLayout {
                                     spacing: 6
                                     Rectangle {
+                                        implicitWidth: 18; implicitHeight: 18
                                         width: 18; height: 18
                                         radius: Math.min(4, theme.radius)
                                         color: win.fieldFormFiltre ? theme.accent : "#18181d"
@@ -2378,6 +2392,8 @@ ApplicationWindow {
 
                                         Rectangle {
                                             required property var modelData
+                                            implicitHeight: 24
+                                            implicitWidth: opChipLbl.implicitWidth + 14
                                             height: 24
                                             width: opChipLbl.implicitWidth + 14
                                             radius: Math.min(4, theme.radius)
