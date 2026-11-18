@@ -6,6 +6,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFont>
+#include <QFontMetrics>
+#include <QLocale>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
@@ -703,6 +706,49 @@ void Backend::reloadFieldsAndRecords() {
         }
         fmap.insert(QStringLiteral("hasFooter"), hasFooter);
         fmap.insert(QStringLiteral("footerValue"), footerVal);
+
+        // Compute ideal content width based on header, footer, and visible cell values.
+        QFont headerFont;
+        headerFont.setPixelSize(12);
+        headerFont.setWeight(QFont::DemiBold);
+        const QFontMetrics headerFm(headerFont);
+
+        QFont cellFont;
+        cellFont.setPixelSize(13);
+        const QFontMetrics cellFm(cellFont);
+
+        const QString headerText = fr.name + (fr.obligatoire ? QStringLiteral(" *") : QString());
+        int contentWidth = std::max(96, headerFm.horizontalAdvance(headerText) + 38);
+
+        if (hasFooter) {
+            const int dec = (fr.datatype == QLatin1String("Euros") || fr.operation == QLatin1String("Average")) ? 2 : 0;
+            QString footerStr = QStringLiteral("Average: ") + QLocale().toString(footerVal, 'f', dec);
+            if (fr.datatype == QLatin1String("Euros"))
+                footerStr += QStringLiteral(" €");
+            contentWidth = std::max(contentWidth, headerFm.horizontalAdvance(footerStr) + 24);
+        }
+
+        for (int recIdx : std::as_const(filteredIndices)) {
+            const QString raw = buckets[recIdx].valuesByField.value(fr.id);
+            if (raw.isEmpty())
+                continue;
+            QString displayStr = raw;
+            double numVal = 0.0;
+            const bool isNum = parseDoubleFlexible(raw, &numVal);
+            if (fr.datatype == QLatin1String("Euros") && isNum) {
+                displayStr = QLocale().toString(numVal, 'f', 2) + QStringLiteral(" €");
+            } else if ((fr.datatype == QLatin1String("Number") || fr.datatype == QLatin1String("Formula")) && isNum) {
+                const int dec = raw.contains(QLatin1Char('.')) ? 2 : 0;
+                displayStr = QLocale().toString(numVal, 'f', dec);
+            } else if (fr.datatype == QLatin1String("Stars")) {
+                displayStr = QStringLiteral("★★★★★");
+            }
+            const int pad = (fr.datatype == QLatin1String("Status") || fr.datatype == QLatin1String("YesNo")) ? 40 : 28;
+            contentWidth = std::max(contentWidth, cellFm.horizontalAdvance(displayStr) + pad);
+        }
+        contentWidth = std::min(contentWidth, 560);
+        fmap.insert(QStringLiteral("contentWidth"), contentWidth);
+
         nextFields.append(fmap);
     }
 

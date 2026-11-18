@@ -87,6 +87,34 @@ ApplicationWindow {
         return out
     }
 
+    function formatCellDisplay(datatype, rawValue, isNumeric, numericValue) {
+        var _ = translator.language
+        if (rawValue === "")
+            return "—"
+        if (datatype === "YesNo")
+            return rawValue === "true" ? qsTr("Yes") : qsTr("No")
+        if (datatype === "Euros" && isNumeric)
+            return formatNumber(numericValue, 2) + " €"
+        if ((datatype === "Number" || datatype === "Formula") && isNumeric) {
+            var dec = rawValue.indexOf(".") >= 0 ? 2 : 0
+            return formatNumber(numericValue, dec)
+        }
+        if (datatype === "Stars")
+            return starsText(numericValue)
+        return rawValue
+    }
+
+    function formatFooterDisplay(fieldObj) {
+        var _ = translator.language
+        if (!fieldObj.hasFooter)
+            return ""
+        var opLabel = fieldObj.operation === "Average" ? qsTr("Avg") : qsTr("Sum")
+        var formatted = formatNumber(fieldObj.footerValue, fieldObj.datatype === "Euros" || fieldObj.operation === "Average" ? 2 : 0)
+        if (fieldObj.datatype === "Euros")
+            formatted += " €"
+        return opLabel + ": " + formatted
+    }
+
     function openNewTableDialog() {
         backend.clearMessages()
         editingTableId = 0
@@ -1151,21 +1179,83 @@ ApplicationWindow {
 
                     // Data Table Grid (Header + Rows + Footer Aggregation)
                     Item {
+                        id: dataGridContainer
+                        objectName: "dataGridContainer"
                         visible: backend.fieldCount > 0
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
 
-                        readonly property int colWidth: Math.max(88, Math.floor((width - 236) / Math.max(1, backend.fieldCount)))
-                        readonly property int totalGridWidth: 44 + backend.fieldCount * colWidth + 96 + 96
+                        readonly property int fixedColsWidth: 44 + 96 + 96
+                        readonly property int sumMinFieldWidths: {
+                            var flist = backend.fields
+                            var sum = 0
+                            for (var i = 0; i < flist.length; ++i)
+                                sum += Math.max(96, Number(flist[i].contentWidth) || 120)
+                            return sum
+                        }
+                        readonly property int extraWidthPerCol: {
+                            var count = backend.fieldCount
+                            if (count <= 0)
+                                return 0
+                            var rem = width - fixedColsWidth - sumMinFieldWidths
+                            return rem > 0 ? Math.floor(rem / count) : 0
+                        }
+                        readonly property int extraWidthRemainder: {
+                            var count = backend.fieldCount
+                            if (count <= 0)
+                                return 0
+                            var rem = width - fixedColsWidth - sumMinFieldWidths
+                            return rem > 0 ? (rem - extraWidthPerCol * count) : 0
+                        }
+                        readonly property int totalGridWidth: {
+                            var count = backend.fieldCount
+                            return fixedColsWidth + sumMinFieldWidths + extraWidthPerCol * count + extraWidthRemainder
+                        }
+
+                        function columnWidthAt(idx) {
+                            var flist = backend.fields
+                            if (idx < 0 || idx >= flist.length)
+                                return 120
+                            var baseW = Math.max(96, Number(flist[idx].contentWidth) || 120)
+                            return baseW + extraWidthPerCol + (idx + 1 === flist.length ? extraWidthRemainder : 0)
+                        }
 
                         Flickable {
                             id: horizFlick
+                            objectName: "horizFlick"
                             anchors.fill: parent
                             contentWidth: Math.max(parent.width, parent.totalGridWidth)
                             contentHeight: parent.height
+                            flickableDirection: Flickable.HorizontalFlick
                             boundsBehavior: Flickable.StopAtBounds
                             clip: true
+
+                            ScrollBar.horizontal: ScrollBar {
+                                id: horizScrollBar
+                                objectName: "horizScrollBar"
+                                policy: horizFlick.contentWidth > horizFlick.width ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
+                                height: 8
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                            }
+
+                            WheelHandler {
+                                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                onWheel: (event) => {
+                                    var dx = event.angleDelta.x
+                                    if (dx === 0 && (event.modifiers & Qt.ShiftModifier))
+                                        dx = event.angleDelta.y
+                                    if (dx !== 0 && horizFlick.contentWidth > horizFlick.width) {
+                                        var maxScroll = horizFlick.contentWidth - horizFlick.width
+                                        horizFlick.contentX = Math.max(0, Math.min(maxScroll, horizFlick.contentX - dx))
+                                        event.accepted = true
+                                    } else {
+                                        event.accepted = false
+                                    }
+                                }
+                            }
 
                             ColumnLayout {
                                 width: horizFlick.contentWidth
@@ -1207,7 +1297,8 @@ ApplicationWindow {
 
                                             Rectangle {
                                                 required property var modelData
-                                                width: horizFlick.parent.colWidth
+                                                required property int index
+                                                width: dataGridContainer.columnWidthAt(index)
                                                 height: 40
                                                 color: colHeaderHover.hovered ? "#1f1f26" : "transparent"
 
@@ -1223,6 +1314,9 @@ ApplicationWindow {
                                                         color: backend.sortFieldId === modelData.id ? theme.accent : "#dcdce4"
                                                         font.pixelSize: 12
                                                         font.weight: Font.DemiBold
+                                                        horizontalAlignment: (modelData.datatype === "Number" || modelData.datatype === "Euros" || modelData.datatype === "Formula")
+                                                            ? Text.AlignRight
+                                                            : Text.AlignLeft
                                                         elide: Text.ElideRight
                                                     }
 
@@ -1281,10 +1375,15 @@ ApplicationWindow {
                                 // Records ListView
                                 ListView {
                                     id: recordsListView
+                                    objectName: "recordsListView"
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     clip: true
                                     model: backend.records
+
+                                    ScrollBar.vertical: ScrollBar {
+                                        policy: ScrollBar.AsNeeded
+                                    }
 
                                     Label {
                                         anchors.centerIn: parent
@@ -1328,7 +1427,6 @@ ApplicationWindow {
 
                                             MouseArea {
                                                 anchors.fill: parent
-                                                preventStealing: true
                                                 onClicked: backend.selectedRowIndex = index
                                                 onDoubleClicked: {
                                                     backend.selectedRowIndex = index
@@ -1358,7 +1456,8 @@ ApplicationWindow {
 
                                                     Item {
                                                         required property var modelData
-                                                        width: horizFlick.parent.colWidth
+                                                        required property int index
+                                                        width: dataGridContainer.columnWidthAt(index)
                                                         height: 42
 
                                                         // Status Pill Badge
@@ -1416,26 +1515,16 @@ ApplicationWindow {
                                                             anchors.leftMargin: 10
                                                             anchors.rightMargin: 10
                                                             verticalAlignment: Text.AlignVCenter
+                                                            horizontalAlignment: (modelData.datatype === "Number" || modelData.datatype === "Euros" || modelData.datatype === "Formula")
+                                                                ? Text.AlignRight
+                                                                : Text.AlignLeft
                                                             color: modelData.datatype === "Formula"
                                                                 ? theme.accent
                                                                 : (modelData.datatype === "Stars" ? "#fbbf24" : "#e8e8ee")
                                                             font.pixelSize: 13
                                                             font.weight: modelData.datatype === "Formula" ? Font.DemiBold : Font.Normal
                                                             elide: Text.ElideRight
-                                                            text: {
-                                                                var _ = translator.language
-                                                                if (modelData.rawValue === "")
-                                                                    return "—"
-                                                                if (modelData.datatype === "Euros" && modelData.isNumeric)
-                                                                    return win.formatNumber(modelData.numericValue, 2) + " €"
-                                                                if ((modelData.datatype === "Number" || modelData.datatype === "Formula") && modelData.isNumeric) {
-                                                                    var dec = modelData.rawValue.indexOf(".") >= 0 ? 2 : 0
-                                                                    return win.formatNumber(modelData.numericValue, dec)
-                                                                }
-                                                                if (modelData.datatype === "Stars")
-                                                                    return win.starsText(modelData.numericValue)
-                                                                return modelData.rawValue
-                                                            }
+                                                            text: win.formatCellDisplay(modelData.datatype, modelData.rawValue, modelData.isNumeric, modelData.numericValue)
                                                         }
                                                     }
                                                 }
@@ -1554,27 +1643,24 @@ ApplicationWindow {
 
                                             Item {
                                                 required property var modelData
-                                                width: horizFlick.parent.colWidth
+                                                required property int index
+                                                width: dataGridContainer.columnWidthAt(index)
                                                 height: 40
 
                                                 Label {
                                                     visible: modelData.hasFooter
                                                     anchors.fill: parent
-                                                    anchors.leftMargin: 8
-                                                    anchors.rightMargin: 4
+                                                    anchors.leftMargin: 10
+                                                    anchors.rightMargin: 10
                                                     verticalAlignment: Text.AlignVCenter
+                                                    horizontalAlignment: (modelData.datatype === "Number" || modelData.datatype === "Euros" || modelData.datatype === "Formula")
+                                                        ? Text.AlignRight
+                                                        : Text.AlignLeft
                                                     color: theme.accent
                                                     font.pixelSize: 11
                                                     font.weight: Font.DemiBold
                                                     elide: Text.ElideRight
-                                                    text: {
-                                                        var _ = translator.language
-                                                        var opLabel = modelData.operation === "Average" ? qsTr("Avg") : qsTr("Sum")
-                                                        var formatted = win.formatNumber(modelData.footerValue, modelData.datatype === "Euros" || modelData.operation === "Average" ? 2 : 0)
-                                                        if (modelData.datatype === "Euros")
-                                                            formatted += " €"
-                                                        return opLabel + ": " + formatted
-                                                    }
+                                                    text: win.formatFooterDisplay(modelData)
                                                 }
                                             }
                                         }

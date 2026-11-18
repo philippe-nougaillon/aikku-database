@@ -320,6 +320,26 @@ private slots:
         QTest::qWait(50);
         QCOMPARE(window->property("recordDialogVisible").toBool(), false);
         QCOMPARE(backend.recordCount(), 6);
+
+        // Verify that columns automatically expand to fit long field values and enable horizontal scrolling.
+        const int fEmail = backend.addField("Email", "Email", "", false, false);
+        const int fUrl = backend.addField("Website", "URL", "", false, false);
+        QVERIFY(fEmail > 0 && fUrl > 0);
+
+        QVariantMap longRow = backend.recordValues(1);
+        longRow.insert(QString::number(fEmail), "christopher.alexander.longname@enterprise-domain.example.org");
+        longRow.insert(QString::number(fUrl), "https://inventory.enterprise-domain.example.org/assets/hardware/thinkpad-x1");
+        QVERIFY(backend.saveRecord(1, longRow) > 0);
+        QTest::qWait(50);
+
+        auto *horizFlick = findVisualItem(window->contentItem(), "horizFlick");
+        QVERIFY(horizFlick != nullptr);
+        const double contentW = horizFlick->property("contentWidth").toDouble();
+        const double viewportW = horizFlick->width();
+        QVERIFY2(contentW > viewportW, qPrintable(QString("Expected contentWidth (%1) > viewportWidth (%2)").arg(contentW).arg(viewportW)));
+
+        const int emailColW = backend.fieldDetails(fEmail).value("contentWidth").toInt();
+        QVERIFY2(emailColW >= 300, qPrintable(QString("Expected email column width >= 300, got %1").arg(emailColW)));
     }
 
 private:
