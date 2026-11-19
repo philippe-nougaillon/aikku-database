@@ -7,6 +7,7 @@ INCLUDEPATH += ../src
 
 HEADERS += \
     ../src/backend.h \
+    ../src/blobimageprovider.h \
     ../src/filepicker.h \
     ../src/theme.h \
     ../src/translator.h
@@ -14,6 +15,7 @@ HEADERS += \
 SOURCES += \
     aikku-database_tests.cpp \
     ../src/backend.cpp \
+    ../src/blobimageprovider.cpp \
     ../src/theme.cpp \
     ../src/translator.cpp
 

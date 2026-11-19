@@ -1,13 +1,16 @@
 # Aikku Database
 
-A keyboard-first custom SQLite tables and collections manager for Omarchy, inspired by [Aikku Access](https://github.com/philippe-nougaillon/aikku-access). Model tables, define typed attributes, enter and edit records through dynamically generated forms, search and filter, compute formulas and footer aggregations, and import or export CSV collections.
+A keyboard-first custom SQLite tables and collections manager for Omarchy, inspired by [Aikku Access](https://github.com/philippe-nougaillon/aikku-access). Model tables, define typed attributes and relations, enter and edit records through dynamically generated forms, search and filter, compute formulas and footer aggregations, and import or export CSV collections.
 
 ![Aikku Database Screenshot](screenshot.png)
 
 ## Features
 
-- **Custom Tables & Attributes**: Create tables and define attributes of type `Text`, `Number`, `Euros`, `Date`, `Yes / No`, `List`, `Status` (colored badges), `Formula` (e.g. `[Qty] * [Unit Price]`), `Tags`, `Stars` (`1–5`), `URL`, and `Email`.
-- **Dynamic Record Forms**: Automatically builds an input form from each table's ordered attributes with required-field validation and "Save & add another" (`submit_and_refill`).
+- **Custom Tables & Attributes**: Create tables and define attributes of type `Text`, `Number`, `Euros`, `Date`, `Yes / No`, `List`, `Status` (colored badges), `Relation` (link to another table via `Table:Attribute`, e.g. `Clients:name`), `Formula` (e.g. `[Qty] * [Unit Price]`), `Tags`, `Stars` (`1–5`), `URL`, `Email`, and `Image` (embedded directly in SQLite).
+- **Table Relations**: Reference records from another table with an interactive source table and display attribute picker, target validation, and choice chips (including an optional `None` option) in record forms.
+- **Embedded Images & Click-to-Zoom Preview**: Pick images via the XDG desktop portal or drag-and-drop them onto record forms; images are auto-oriented, resized if oversized, stored inside the `.sqlite` file, rendered as grid thumbnails, and open in a zoomable lightbox on click (`+`/`-`/`0`, scroll wheel, or click to toggle zoom, `Esc` to close).
+- **Dynamic Record Forms**: Automatically builds and sizes an input form from each table's ordered attributes with required-field validation and "Save & add another" (`submit_and_refill`).
+- **Adaptive Data Grid**: Auto-sizes columns to fit headers, cell values, and footer totals with horizontal scrolling (`Shift` + scroll wheel or trackpad) for wide tables, and right-aligns numeric columns (`Number`, `Euros`, and `Formula`) across headers, rows, and footers.
 - **Search, Quick Filters & Sorting**: Full-text search across records, per-attribute quick filters (`filtre` flag) and date-range filters, column sorting, and sticky footer `Sum` / `Average` aggregations.
 - **CSV Import & Export**: Import CSV files into a new table (auto-detecting `Text`, `Number`, `Date`, and `Yes / No` columns) or export any table to CSV.
 - **Single SQLite Database**: Stores all tables, fields, and values in `~/.local/share/aikku-database/aikku-database.sqlite` (or any `.sqlite` file passed on the command line or opened via the XDG desktop portal).

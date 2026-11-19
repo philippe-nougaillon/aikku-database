@@ -45,10 +45,25 @@ ApplicationWindow {
     property bool discardRecordConfirmVisible: false
     property bool quitConfirmVisible: false
 
+    property bool imagePreviewVisible: false
+    property string imagePreviewUrl: ""
+    property string imagePreviewTitle: ""
+    property string imagePreviewMeta: ""
+    property real imagePreviewZoom: 1.0
+
     readonly property bool overlayOpen: helpVisible || tableDialogVisible || fieldsDialogVisible
         || recordDialogVisible || deleteTableConfirmVisible || deleteRecordConfirmVisible
-        || discardRecordConfirmVisible || quitConfirmVisible
+        || discardRecordConfirmVisible || quitConfirmVisible || imagePreviewVisible
     readonly property bool typingInSearch: searchInput.activeFocus
+
+    readonly property bool tableHasImageField: {
+        var flist = backend.fields
+        for (var i = 0; i < flist.length; ++i) {
+            if (flist[i].datatype === "Image")
+                return true
+        }
+        return false
+    }
 
     readonly property var datatypesModel: [
         { code: "Text", label: qsTr("Text") },
@@ -63,7 +78,8 @@ ApplicationWindow {
         { code: "Tags", label: qsTr("Tags") },
         { code: "Stars", label: qsTr("Stars") },
         { code: "URL", label: qsTr("URL") },
-        { code: "Email", label: qsTr("Email") }
+        { code: "Email", label: qsTr("Email") },
+        { code: "Image", label: qsTr("Image") }
     ]
 
     readonly property string relationTargetTable: {
@@ -324,6 +340,36 @@ ApplicationWindow {
         recordDialogVisible = false
     }
 
+    function openImagePreview(url, filename, width, height, fieldName) {
+        if (!url || url === "")
+            return
+        imagePreviewUrl = url
+        var title = filename && filename !== "" ? filename : (fieldName || qsTr("Image"))
+        if (fieldName && fieldName !== "" && filename && filename !== "")
+            title = fieldName + " — " + filename
+        imagePreviewTitle = title
+        imagePreviewMeta = (width > 0 && height > 0) ? (width + " × " + height + " px") : ""
+        imagePreviewZoom = 1.0
+        imagePreviewVisible = true
+    }
+
+    function closeImagePreview() {
+        imagePreviewVisible = false
+        imagePreviewZoom = 1.0
+    }
+
+    function adjustImagePreviewZoom(delta) {
+        imagePreviewZoom = Math.max(1.0, Math.min(4.0, Math.round((imagePreviewZoom + delta) * 4) / 4))
+    }
+
+    Connections {
+        target: backend
+        function onImagePicked(fieldId, blobRef) {
+            if (win.recordDialogVisible && blobRef !== "")
+                win.setRecordFieldValue(fieldId, blobRef)
+        }
+    }
+
     function handleSpaceAction() {
         if (backend.tableCount === 0)
             openNewTableDialog()
@@ -345,14 +391,15 @@ ApplicationWindow {
     Shortcut {
         sequence: "?"
         context: Qt.ApplicationShortcut
-        enabled: !win.typingInSearch && !win.tableDialogVisible && !win.fieldsDialogVisible && !win.recordDialogVisible
+        enabled: !win.typingInSearch && !win.tableDialogVisible && !win.fieldsDialogVisible && !win.recordDialogVisible && !win.imagePreviewVisible
         onActivated: win.helpVisible = !win.helpVisible
     }
     Shortcut {
         sequence: "Escape"
         context: Qt.ApplicationShortcut
         onActivated: {
-            if (win.helpVisible) win.helpVisible = false
+            if (win.imagePreviewVisible) win.closeImagePreview()
+            else if (win.helpVisible) win.helpVisible = false
             else if (win.quitConfirmVisible) win.quitConfirmVisible = false
             else if (win.discardRecordConfirmVisible) win.discardRecordConfirmVisible = false
             else if (win.deleteRecordConfirmVisible) win.deleteRecordConfirmVisible = false
@@ -365,6 +412,24 @@ ApplicationWindow {
                 backend.searchText = ""
             }
         }
+    }
+    Shortcut {
+        sequences: ["+", "="]
+        context: Qt.ApplicationShortcut
+        enabled: win.imagePreviewVisible
+        onActivated: win.adjustImagePreviewZoom(0.5)
+    }
+    Shortcut {
+        sequence: "-"
+        context: Qt.ApplicationShortcut
+        enabled: win.imagePreviewVisible
+        onActivated: win.adjustImagePreviewZoom(-0.5)
+    }
+    Shortcut {
+        sequence: "0"
+        context: Qt.ApplicationShortcut
+        enabled: win.imagePreviewVisible
+        onActivated: win.imagePreviewZoom = 1.0
     }
     Shortcut {
         sequence: "Q"
@@ -1434,6 +1499,8 @@ ApplicationWindow {
                                     clip: true
                                     model: backend.records
 
+                                    readonly property int rowHeight: win.tableHasImageField ? 52 : 42
+
                                     ScrollBar.vertical: ScrollBar {
                                         policy: ScrollBar.AsNeeded
                                     }
@@ -1449,11 +1516,13 @@ ApplicationWindow {
                                     }
 
                                     delegate: Item {
+                                        id: rowDelegate
                                         required property var modelData
                                         required property int index
                                         width: recordsListView.width
-                                        height: 42
+                                        height: recordsListView.rowHeight
 
+                                        readonly property int rowIdx: index
                                         readonly property bool isSelected: index === backend.selectedRowIndex
 
                                         Rectangle {
@@ -1511,7 +1580,7 @@ ApplicationWindow {
                                                         required property var modelData
                                                         required property int index
                                                         width: dataGridContainer.columnWidthAt(index)
-                                                        height: 42
+                                                        height: parent.height
 
                                                         // Status Pill Badge
                                                         Rectangle {
@@ -1561,9 +1630,53 @@ ApplicationWindow {
                                                             }
                                                         }
 
+                                                        // Image Thumbnail (click to zoom)
+                                                        Rectangle {
+                                                            objectName: "gridImageThumb_" + rowDelegate.rowIdx + "_" + index
+                                                            visible: modelData.datatype === "Image" && modelData.imageUrl !== ""
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            anchors.left: parent.left
+                                                            anchors.leftMargin: 10
+                                                            width: 40
+                                                            height: 40
+                                                            radius: Math.min(4, theme.radius)
+                                                            color: "#18181f"
+                                                            border.width: 1
+                                                            border.color: imgThumbHover.hovered ? theme.accent : "#34343e"
+                                                            clip: true
+
+                                                            Image {
+                                                                anchors.fill: parent
+                                                                anchors.margins: 1
+                                                                source: modelData.imageUrl
+                                                                sourceSize.width: 80
+                                                                sourceSize.height: 80
+                                                                fillMode: Image.PreserveAspectCrop
+                                                                smooth: true
+                                                                mipmap: true
+                                                                asynchronous: false
+                                                            }
+
+                                                            HoverHandler {
+                                                                id: imgThumbHover
+                                                                cursorShape: Qt.PointingHandCursor
+                                                            }
+
+                                                            MouseArea {
+                                                                anchors.fill: parent
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onClicked: (mouse) => {
+                                                                    mouse.accepted = true
+                                                                    backend.selectedRowIndex = rowDelegate.rowIdx
+                                                                    win.openImagePreview(modelData.imageUrl, modelData.imageName, modelData.imageWidth, modelData.imageHeight, modelData.name)
+                                                                }
+                                                            }
+                                                        }
+
                                                         // Standard / Numeric / Stars / Euros Text Cell
                                                         Label {
                                                             visible: modelData.datatype !== "Status" && modelData.datatype !== "YesNo"
+                                                                && (modelData.datatype !== "Image" || modelData.imageUrl === "")
                                                             anchors.fill: parent
                                                             anchors.leftMargin: 10
                                                             anchors.rightMargin: 10
@@ -1577,7 +1690,8 @@ ApplicationWindow {
                                                             font.pixelSize: 13
                                                             font.weight: modelData.datatype === "Formula" ? Font.DemiBold : Font.Normal
                                                             elide: Text.ElideRight
-                                                            text: win.formatCellDisplay(modelData.datatype, modelData.rawValue, modelData.isNumeric, modelData.numericValue)
+                                                            text: modelData.datatype === "Image" ? "—"
+                                                                : win.formatCellDisplay(modelData.datatype, modelData.rawValue, modelData.isNumeric, modelData.numericValue)
                                                         }
                                                     }
                                                 }
@@ -1585,7 +1699,7 @@ ApplicationWindow {
                                                 // Updated Timestamp Cell
                                                 Item {
                                                     width: 96
-                                                    height: 42
+                                                    height: parent.height
                                                     Label {
                                                         anchors.fill: parent
                                                         anchors.leftMargin: 8
@@ -1602,7 +1716,7 @@ ApplicationWindow {
                                                 // Row Edit / Delete Actions
                                                 Row {
                                                     width: 96
-                                                    height: 42
+                                                    height: parent.height
                                                     spacing: 4
                                                     leftPadding: 4
 
@@ -2678,12 +2792,196 @@ ApplicationWindow {
                                         }
                                     }
 
+                                    // Image Picker & Thumbnail Preview
+                                    Rectangle {
+                                        id: imageFieldBox
+                                        objectName: "recordImageField_" + fieldDelegate.index
+                                        visible: fieldDelegate.modelData.datatype === "Image"
+                                        Layout.fillWidth: true
+                                        implicitHeight: 84
+                                        Layout.preferredHeight: 84
+                                        radius: Math.min(4, theme.radius)
+                                        color: imgDropArea.containsDrag ? "#1c202c" : "#141419"
+                                        border.width: imgDropArea.containsDrag ? 2 : 1
+                                        border.color: imgDropArea.containsDrag ? theme.accent : "#2e2e36"
+
+                                        readonly property var info: visible && fieldDelegate.currentValue !== ""
+                                            ? backend.blobInfo(fieldDelegate.currentValue)
+                                            : ({})
+                                        readonly property string imgUrl: info.url ? String(info.url) : ""
+                                        readonly property string imgName: info.filename ? String(info.filename) : ""
+                                        readonly property int imgW: Number(info.width) || 0
+                                        readonly property int imgH: Number(info.height) || 0
+
+                                        DropArea {
+                                            id: imgDropArea
+                                            anchors.fill: parent
+                                            enabled: imageFieldBox.visible
+                                            onEntered: (drag) => {
+                                                drag.accepted = drag.hasUrls && drag.urls.length > 0
+                                            }
+                                            onDropped: (drop) => {
+                                                if (drop.hasUrls && drop.urls.length > 0) {
+                                                    var ref = backend.importImageUrl(drop.urls[0])
+                                                    if (ref !== "") {
+                                                        win.setRecordFieldValue(fieldDelegate.fieldId, ref)
+                                                        drop.accept(Qt.CopyAction)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 10
+                                            spacing: 12
+
+                                            // 64x64 Preview Box (click to zoom or pick)
+                                            Rectangle {
+                                                Layout.preferredWidth: 64
+                                                Layout.preferredHeight: 64
+                                                implicitWidth: 64
+                                                implicitHeight: 64
+                                                radius: Math.min(4, theme.radius)
+                                                color: "#101014"
+                                                border.width: 1
+                                                border.color: formThumbHover.hovered ? theme.accent : "#34343e"
+                                                clip: true
+
+                                                Image {
+                                                    visible: imageFieldBox.imgUrl !== ""
+                                                    anchors.fill: parent
+                                                    anchors.margins: 1
+                                                    source: imageFieldBox.imgUrl
+                                                    sourceSize.width: 128
+                                                    sourceSize.height: 128
+                                                    fillMode: Image.PreserveAspectCrop
+                                                    smooth: true
+                                                    mipmap: true
+                                                    asynchronous: false
+                                                }
+
+                                                Label {
+                                                    visible: imageFieldBox.imgUrl === ""
+                                                    anchors.centerIn: parent
+                                                    text: qsTr("None")
+                                                    color: "#62626c"
+                                                    font.pixelSize: 11
+                                                }
+
+                                                HoverHandler {
+                                                    id: formThumbHover
+                                                    cursorShape: Qt.PointingHandCursor
+                                                }
+                                                TapHandler {
+                                                    onTapped: {
+                                                        if (imageFieldBox.imgUrl !== "") {
+                                                            win.openImagePreview(imageFieldBox.imgUrl, imageFieldBox.imgName, imageFieldBox.imgW, imageFieldBox.imgH, fieldDelegate.modelData.name)
+                                                        } else {
+                                                            backend.pickImageDialog(fieldDelegate.fieldId)
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 6
+
+                                                Label {
+                                                    Layout.fillWidth: true
+                                                    elide: Text.ElideRight
+                                                    text: imageFieldBox.imgUrl !== ""
+                                                        ? (imageFieldBox.imgName !== "" ? imageFieldBox.imgName : qsTr("Embedded image"))
+                                                          + (imageFieldBox.imgW > 0 && imageFieldBox.imgH > 0
+                                                             ? (" · " + imageFieldBox.imgW + "×" + imageFieldBox.imgH) : "")
+                                                        : qsTr("Drop an image here or choose a file")
+                                                    color: imageFieldBox.imgUrl !== "" ? "#dcdce4" : "#7a7a84"
+                                                    font.pixelSize: 12
+                                                }
+
+                                                RowLayout {
+                                                    spacing: 8
+
+                                                    Rectangle {
+                                                        objectName: "recordImagePickBtn_" + fieldDelegate.index
+                                                        implicitHeight: 28
+                                                        implicitWidth: pickImgLbl.implicitWidth + 18
+                                                        height: 28
+                                                        width: pickImgLbl.implicitWidth + 18
+                                                        radius: Math.min(4, theme.radius)
+                                                        color: pickImgHover.hovered ? "#2c2c36" : "#202028"
+                                                        border.width: 1
+                                                        border.color: pickImgHover.hovered ? theme.accent : "#383844"
+
+                                                        Label {
+                                                            id: pickImgLbl
+                                                            anchors.centerIn: parent
+                                                            text: imageFieldBox.imgUrl !== "" ? qsTr("Replace…") : qsTr("Choose image…")
+                                                            color: "#e8e8ee"
+                                                            font.pixelSize: 12
+                                                        }
+                                                        HoverHandler { id: pickImgHover; cursorShape: Qt.PointingHandCursor }
+                                                        TapHandler { onTapped: backend.pickImageDialog(fieldDelegate.fieldId) }
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: imageFieldBox.imgUrl !== ""
+                                                        implicitHeight: 28
+                                                        implicitWidth: prevImgLbl.implicitWidth + 18
+                                                        height: 28
+                                                        width: prevImgLbl.implicitWidth + 18
+                                                        radius: Math.min(4, theme.radius)
+                                                        color: prevImgHover.hovered ? "#2c2c36" : "#1c1c22"
+                                                        border.width: 1
+                                                        border.color: "#32323c"
+
+                                                        Label {
+                                                            id: prevImgLbl
+                                                            anchors.centerIn: parent
+                                                            text: qsTr("Preview")
+                                                            color: "#d4d4dc"
+                                                            font.pixelSize: 12
+                                                        }
+                                                        HoverHandler { id: prevImgHover; cursorShape: Qt.PointingHandCursor }
+                                                        TapHandler {
+                                                            onTapped: win.openImagePreview(imageFieldBox.imgUrl, imageFieldBox.imgName, imageFieldBox.imgW, imageFieldBox.imgH, fieldDelegate.modelData.name)
+                                                        }
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: imageFieldBox.imgUrl !== ""
+                                                        implicitHeight: 28
+                                                        implicitWidth: clrImgLbl.implicitWidth + 16
+                                                        height: 28
+                                                        width: clrImgLbl.implicitWidth + 16
+                                                        radius: Math.min(4, theme.radius)
+                                                        color: clrImgHover.hovered ? "#3f181c" : "#1c1c22"
+                                                        border.width: 1
+                                                        border.color: clrImgHover.hovered ? "#dc2626" : "#32323c"
+
+                                                        Label {
+                                                            id: clrImgLbl
+                                                            anchors.centerIn: parent
+                                                            text: qsTr("Clear")
+                                                            color: clrImgHover.hovered ? "#fca5a5" : "#a0a0aa"
+                                                            font.pixelSize: 12
+                                                        }
+                                                        HoverHandler { id: clrImgHover; cursorShape: Qt.PointingHandCursor }
+                                                        TapHandler { onTapped: win.setRecordFieldValue(fieldDelegate.fieldId, "") }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     // Standard Text / Number / Euros / Date / Tags / URL / Email Input
                                     Rectangle {
                                         id: textInputBox
                                         visible: fieldDelegate.modelData.datatype !== "YesNo" && fieldDelegate.modelData.datatype !== "List"
                                             && fieldDelegate.modelData.datatype !== "Status" && fieldDelegate.modelData.datatype !== "Relation"
                                             && fieldDelegate.modelData.datatype !== "Stars" && fieldDelegate.modelData.datatype !== "Formula"
+                                            && fieldDelegate.modelData.datatype !== "Image"
                                         Layout.fillWidth: true
                                         height: 36
                                         radius: Math.min(4, theme.radius)
@@ -2820,6 +3118,226 @@ ApplicationWindow {
                     Qt.quit()
             }
             onDismissed: win.quitConfirmVisible = false
+        }
+
+        // --- Click-to-Zoom Image Preview Lightbox ---
+        Rectangle {
+            id: imagePreviewOverlay
+            objectName: "imagePreviewOverlay"
+            visible: win.imagePreviewVisible
+            anchors.fill: parent
+            color: "#e609090c"
+            z: 100
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: win.closeImagePreview()
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 12
+
+                // Top Bar (Title, Dimensions, Zoom Controls, Close)
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 44
+                    height: 44
+                    radius: Math.min(6, theme.radius)
+                    color: "#cc18181f"
+                    border.width: 1
+                    border.color: "#2e2e38"
+
+                    // Prevent clicks on toolbar from closing the lightbox
+                    MouseArea { anchors.fill: parent }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 10
+                        spacing: 10
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: win.imagePreviewTitle
+                            color: "white"
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            visible: win.imagePreviewMeta !== ""
+                            text: win.imagePreviewMeta
+                            color: "#9a9aa4"
+                            font.pixelSize: 12
+                            font.family: "monospace"
+                        }
+
+                        Rectangle {
+                            width: 1
+                            height: 18
+                            color: "#32323c"
+                        }
+
+                        // Zoom Out (-)
+                        Rectangle {
+                            implicitWidth: 28; implicitHeight: 28
+                            width: 28; height: 28
+                            radius: Math.min(4, theme.radius)
+                            color: zoomOutHover.hovered ? "#2c2c36" : "#202028"
+                            border.width: 1
+                            border.color: "#34343e"
+                            opacity: win.imagePreviewZoom > 1.0 ? 1.0 : 0.45
+
+                            Label {
+                                anchors.centerIn: parent
+                                text: "−"
+                                color: "white"
+                                font.pixelSize: 14
+                            }
+                            HoverHandler { id: zoomOutHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: win.adjustImagePreviewZoom(-0.5) }
+                        }
+
+                        // Zoom % / Reset to Fit
+                        Rectangle {
+                            implicitWidth: zoomPctLbl.implicitWidth + 16
+                            implicitHeight: 28
+                            width: zoomPctLbl.implicitWidth + 16
+                            height: 28
+                            radius: Math.min(4, theme.radius)
+                            color: zoomResetHover.hovered ? "#2c2c36" : "#202028"
+                            border.width: 1
+                            border.color: "#34343e"
+
+                            Label {
+                                id: zoomPctLbl
+                                anchors.centerIn: parent
+                                text: Math.round(win.imagePreviewZoom * 100) + "%"
+                                color: "#dcdce4"
+                                font.pixelSize: 12
+                                font.family: "monospace"
+                            }
+                            HoverHandler { id: zoomResetHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: win.imagePreviewZoom = 1.0 }
+                        }
+
+                        // Zoom In (+)
+                        Rectangle {
+                            implicitWidth: 28; implicitHeight: 28
+                            width: 28; height: 28
+                            radius: Math.min(4, theme.radius)
+                            color: zoomInHover.hovered ? "#2c2c36" : "#202028"
+                            border.width: 1
+                            border.color: "#34343e"
+                            opacity: win.imagePreviewZoom < 4.0 ? 1.0 : 0.45
+
+                            Label {
+                                anchors.centerIn: parent
+                                text: "+"
+                                color: "white"
+                                font.pixelSize: 14
+                            }
+                            HoverHandler { id: zoomInHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: win.adjustImagePreviewZoom(0.5) }
+                        }
+
+                        // Close Button
+                        Rectangle {
+                            objectName: "imagePreviewCloseBtn"
+                            implicitWidth: 28; implicitHeight: 28
+                            width: 28; height: 28
+                            radius: Math.min(4, theme.radius)
+                            color: closePrevHover.hovered ? "#3f181c" : "#202028"
+                            border.width: 1
+                            border.color: closePrevHover.hovered ? "#dc2626" : "#34343e"
+
+                            Label {
+                                anchors.centerIn: parent
+                                text: "×"
+                                color: closePrevHover.hovered ? "#fca5a5" : "#d4d4dc"
+                                font.pixelSize: 16
+                            }
+                            HoverHandler { id: closePrevHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: win.closeImagePreview() }
+                        }
+                    }
+                }
+
+                // Image Viewport (Click to toggle zoom, Wheel to zoom, Drag to pan)
+                Flickable {
+                    id: previewFlick
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    interactive: win.imagePreviewZoom > 1.01
+
+                    readonly property real maxFitW: Math.max(120, width - 24)
+                    readonly property real maxFitH: Math.max(120, height - 24)
+                    readonly property real natW: previewImg.implicitWidth > 0 ? previewImg.implicitWidth : maxFitW
+                    readonly property real natH: previewImg.implicitHeight > 0 ? previewImg.implicitHeight : maxFitH
+                    readonly property real fitScale: Math.min(1.0, maxFitW / natW, maxFitH / natH)
+                    readonly property real fitW: natW * fitScale
+                    readonly property real fitH: natH * fitScale
+
+                    contentWidth: Math.max(width, fitW * win.imagePreviewZoom)
+                    contentHeight: Math.max(height, fitH * win.imagePreviewZoom)
+
+                    WheelHandler {
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: (event) => {
+                            if (event.angleDelta.y > 0)
+                                win.adjustImagePreviewZoom(0.25)
+                            else if (event.angleDelta.y < 0)
+                                win.adjustImagePreviewZoom(-0.25)
+                            event.accepted = true
+                        }
+                    }
+
+                    Item {
+                        width: previewFlick.contentWidth
+                        height: previewFlick.contentHeight
+
+                        // Clicking empty area around the image closes the lightbox
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: win.closeImagePreview()
+                        }
+
+                        Image {
+                            id: previewImg
+                            objectName: "imagePreviewImage"
+                            anchors.centerIn: parent
+                            width: previewFlick.fitW * win.imagePreviewZoom
+                            height: previewFlick.fitH * win.imagePreviewZoom
+                            source: win.imagePreviewUrl
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            asynchronous: false
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: win.imagePreviewZoom > 1.01 ? Qt.OpenHandCursor : Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    mouse.accepted = true
+                                    win.imagePreviewZoom = win.imagePreviewZoom > 1.01 ? 1.0 : 2.0
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Click image to zoom · Scroll to adjust · Esc to close")
+                    color: "#8a8a94"
+                    font.pixelSize: 11
+                }
+            }
         }
 
         // --- Keyboard Shortcuts Overlay (?) ---

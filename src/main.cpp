@@ -13,6 +13,7 @@
 #include <QUrl>
 
 #include "backend.h"
+#include "blobimageprovider.h"
 #include "cli.h"
 #include "portalfilepicker.h"
 #include "theme.h"
@@ -88,6 +89,7 @@ int main(int argc, char *argv[]) {
         backend.importCsvFile(initialCsvPath, 0);
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("aikku"), new BlobImageProvider(&backend));
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
     engine.rootContext()->setContextProperty(QStringLiteral("translator"), &translator);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);

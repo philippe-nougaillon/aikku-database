@@ -16,10 +16,12 @@ public:
     virtual void openCsv() = 0;
     virtual void exportCsv(const QUrl &suggestedUrl) = 0;
     virtual void openDatabase() = 0;
+    virtual void openImage() = 0;
 
 signals:
     void csvOpenSelected(const QUrl &url);
     void csvExportSelected(const QUrl &url);
     void databaseOpenSelected(const QUrl &url);
+    void imageOpenSelected(const QUrl &url);
     void failed(const QString &message);
 };

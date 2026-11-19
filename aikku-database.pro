@@ -6,6 +6,7 @@ TEMPLATE = app
 
 HEADERS += \
     src/backend.h \
+    src/blobimageprovider.h \
     src/cli.h \
     src/filepicker.h \
     src/portalfilepicker.h \
@@ -15,6 +16,7 @@ HEADERS += \
 SOURCES += \
     src/main.cpp \
     src/backend.cpp \
+    src/blobimageprovider.cpp \
     src/cli.cpp \
     src/portalfilepicker.cpp \
     src/theme.cpp \

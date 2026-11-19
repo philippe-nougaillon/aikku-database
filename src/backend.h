@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QHash>
+#include <QImage>
 #include <QList>
+#include <QMutex>
 #include <QObject>
 #include <QSqlDatabase>
 #include <QUrl>
@@ -14,6 +16,7 @@ class Backend : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString databasePath READ databasePath NOTIFY databaseChanged)
     Q_PROPERTY(QString databaseName READ databaseName NOTIFY databaseChanged)
+    Q_PROPERTY(int imageGeneration READ imageGeneration NOTIFY databaseChanged)
     Q_PROPERTY(QVariantList tables READ tables NOTIFY tablesChanged)
     Q_PROPERTY(int tableCount READ tableCount NOTIFY tablesChanged)
     Q_PROPERTY(int count READ tableCount NOTIFY tablesChanged)
@@ -44,6 +47,8 @@ public:
 
     QString databasePath() const { return m_databasePath; }
     QString databaseName() const;
+    int imageGeneration() const { return m_imageGeneration; }
+    QString threadSafeDatabasePath() const;
     QVariantList tables() const { return m_tables; }
     int tableCount() const { return m_tables.size(); }
     int count() const { return m_tables.size(); }
@@ -123,6 +128,16 @@ public:
     Q_INVOKABLE void exportCsvDialog();
     Q_INVOKABLE bool handleDroppedUrls(const QList<QUrl> &urls);
 
+    // Embedded image blobs
+    Q_INVOKABLE void pickImageDialog(int fieldId);
+    Q_INVOKABLE QString importImageFile(const QString &filePath);
+    Q_INVOKABLE QString importImageUrl(const QUrl &url);
+    Q_INVOKABLE QString imageUrl(const QString &rawValue) const;
+    Q_INVOKABLE QVariantMap blobInfo(const QString &rawValue) const;
+    QImage loadBlobImage(int blobId) const;
+    static QImage loadBlobImageFromFile(const QString &dbPath, int blobId);
+    static int parseBlobId(const QString &rawValue);
+
     // Undo and redo
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
@@ -147,6 +162,7 @@ signals:
     void sortChanged();
     void undoStackChanged();
     void statusChanged();
+    void imagePicked(int fieldId, const QString &blobRef);
 
 private:
     struct TableRow {
@@ -200,9 +216,12 @@ private:
     bool validateFieldOptions(const QString &datatype, const QString &items, QString *errorOut) const;
 
     QString m_connectionName;
+    mutable QMutex m_dbPathMutex;
     QString m_databasePath;
+    int m_imageGeneration = 0;
     FilePicker *m_filePicker = nullptr;
     int m_pendingImportTableId = 0;
+    int m_pendingImageFieldId = 0;
 
     QVariantList m_tables;
     int m_currentTableId = 0;

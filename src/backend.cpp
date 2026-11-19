@@ -1,5 +1,6 @@
 #include "backend.h"
 
+#include <QBuffer>
 #include <QColor>
 #include <QDate>
 #include <QDateTime>
@@ -8,7 +9,9 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFontMetrics>
+#include <QImageReader>
 #include <QLocale>
+#include <QMutexLocker>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
@@ -16,12 +19,15 @@
 #include <QSqlQuery>
 #include <QStandardPaths>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
 #include "filepicker.h"
 
 namespace {
-int s_connectionCounter = 0;
+std::atomic<int> s_connectionCounter{0};
+
+constexpr int kMaxStoredImageDimension = 1600;
 
 QString nowIso() {
     return QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
@@ -187,6 +193,15 @@ Backend::Backend(const QString &databasePath, FilePicker *filePicker, QObject *p
         connect(m_filePicker, &FilePicker::databaseOpenSelected, this, [this](const QUrl &url) {
             openDatabaseFile(url.toLocalFile());
         });
+        connect(m_filePicker, &FilePicker::imageOpenSelected, this, [this](const QUrl &url) {
+            const int fieldId = m_pendingImageFieldId;
+            m_pendingImageFieldId = 0;
+            if (fieldId <= 0)
+                return;
+            const QString ref = importImageFile(url.toLocalFile());
+            if (!ref.isEmpty())
+                emit imagePicked(fieldId, ref);
+        });
         connect(m_filePicker, &FilePicker::failed, this, &Backend::setError);
     }
 
@@ -210,6 +225,11 @@ Backend::~Backend() {
 
 QString Backend::databaseName() const {
     return QFileInfo(m_databasePath).fileName();
+}
+
+QString Backend::threadSafeDatabasePath() const {
+    QMutexLocker locker(&m_dbPathMutex);
+    return m_databasePath;
 }
 
 bool Backend::initDatabase(const QString &path) {
@@ -285,7 +305,25 @@ bool Backend::initDatabase(const QString &path) {
     query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS idx_fields_table ON fields(table_id, row_order)"));
     query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS idx_values_field_record ON \"values\"(field_id, record_index)"));
 
-    m_databasePath = QFileInfo(path).absoluteFilePath();
+    if (!query.exec(QStringLiteral(
+            "CREATE TABLE IF NOT EXISTS blobs ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  filename TEXT NOT NULL DEFAULT '',"
+            "  mime_type TEXT NOT NULL DEFAULT '',"
+            "  width INTEGER NOT NULL DEFAULT 0,"
+            "  height INTEGER NOT NULL DEFAULT 0,"
+            "  data BLOB NOT NULL,"
+            "  created_at TEXT NOT NULL"
+            ")"))) {
+        setError(tr("Failed to initialize blobs schema: %1").arg(query.lastError().text()));
+        return false;
+    }
+
+    {
+        QMutexLocker locker(&m_dbPathMutex);
+        m_databasePath = QFileInfo(path).absoluteFilePath();
+        ++m_imageGeneration;
+    }
     m_undoStack.clear();
     m_redoStack.clear();
     m_currentTableId = 0;
@@ -505,6 +543,39 @@ void Backend::reloadFieldsAndRecords() {
         }
     }
 
+    // Load lightweight blob metadata (without binary data) if this table has any Image fields.
+    struct BlobMeta {
+        QString filename;
+        int width = 0;
+        int height = 0;
+    };
+    QHash<int, BlobMeta> blobMetaById;
+    bool hasImageField = false;
+    for (const FieldRow &fr : std::as_const(fieldRows)) {
+        if (fr.datatype == QLatin1String("Image")) {
+            hasImageField = true;
+            break;
+        }
+    }
+    if (hasImageField) {
+        QSqlQuery bq(db);
+        if (bq.exec(QStringLiteral("SELECT id, filename, width, height FROM blobs"))) {
+            while (bq.next()) {
+                BlobMeta meta;
+                meta.filename = bq.value(1).toString();
+                meta.width = bq.value(2).toInt();
+                meta.height = bq.value(3).toInt();
+                blobMetaById.insert(bq.value(0).toInt(), meta);
+            }
+        }
+    }
+    auto imageDisplayName = [&](const QString &rawVal) -> QString {
+        const int blobId = parseBlobId(rawVal);
+        if (blobId > 0)
+            return blobMetaById.value(blobId).filename;
+        return QString();
+    };
+
     // 3. Apply search and field/date filters.
     const QString needle = m_searchText.trimmed();
     QList<int> filteredIndices;
@@ -514,7 +585,10 @@ void Backend::reloadFieldsAndRecords() {
         if (!needle.isEmpty()) {
             bool matchedSearch = false;
             for (const FieldRow &fr : std::as_const(fieldRows)) {
-                if (bucket.valuesByField.value(fr.id).contains(needle, Qt::CaseInsensitive)) {
+                const QString cellText = (fr.datatype == QLatin1String("Image"))
+                                             ? imageDisplayName(bucket.valuesByField.value(fr.id))
+                                             : bucket.valuesByField.value(fr.id);
+                if (cellText.contains(needle, Qt::CaseInsensitive)) {
                     matchedSearch = true;
                     break;
                 }
@@ -531,7 +605,7 @@ void Backend::reloadFieldsAndRecords() {
             const int fId = fit.key();
             const QString cellVal = bucket.valuesByField.value(fId);
 
-            // Check if field is Tags or Status.
+            // Check if field is Tags, Image, or standard.
             QString fType;
             for (const FieldRow &fr : std::as_const(fieldRows)) {
                 if (fr.id == fId) {
@@ -549,6 +623,11 @@ void Backend::reloadFieldsAndRecords() {
                     }
                 }
                 if (!hasTag) {
+                    matchedFilters = false;
+                    break;
+                }
+            } else if (fType == QLatin1String("Image")) {
+                if (imageDisplayName(cellVal) != filterVal) {
                     matchedFilters = false;
                     break;
                 }
@@ -615,6 +694,10 @@ void Backend::reloadFieldsAndRecords() {
                 cmp = (da < dbVal) ? -1 : (da > dbVal ? 1 : 0);
             else if (oka != okb)
                 cmp = oka ? 1 : -1;
+        } else if (sortDatatype == QLatin1String("Image")) {
+            const QString sa = imageDisplayName(ba.valuesByField.value(m_sortFieldId));
+            const QString sb = imageDisplayName(bb.valuesByField.value(m_sortFieldId));
+            cmp = QString::compare(sa, sb, Qt::CaseInsensitive);
         } else {
             const QString sa = ba.valuesByField.value(m_sortFieldId);
             const QString sb = bb.valuesByField.value(m_sortFieldId);
@@ -732,6 +815,10 @@ void Backend::reloadFieldsAndRecords() {
                     if (!tag.trimmed().isEmpty())
                         distinctSet.insert(tag.trimmed());
                 }
+            } else if (fr.datatype == QLatin1String("Image")) {
+                const QString fname = imageDisplayName(val);
+                if (!fname.isEmpty())
+                    distinctSet.insert(fname);
             } else {
                 distinctSet.insert(val);
             }
@@ -787,23 +874,25 @@ void Backend::reloadFieldsAndRecords() {
             contentWidth = std::max(contentWidth, headerFm.horizontalAdvance(footerStr) + 24);
         }
 
-        for (int recIdx : std::as_const(filteredIndices)) {
-            const QString raw = buckets[recIdx].valuesByField.value(fr.id);
-            if (raw.isEmpty())
-                continue;
-            QString displayStr = raw;
-            double numVal = 0.0;
-            const bool isNum = parseDoubleFlexible(raw, &numVal);
-            if (fr.datatype == QLatin1String("Euros") && isNum) {
-                displayStr = QLocale().toString(numVal, 'f', 2) + QStringLiteral(" €");
-            } else if ((fr.datatype == QLatin1String("Number") || fr.datatype == QLatin1String("Formula")) && isNum) {
-                const int dec = raw.contains(QLatin1Char('.')) ? 2 : 0;
-                displayStr = QLocale().toString(numVal, 'f', dec);
-            } else if (fr.datatype == QLatin1String("Stars")) {
-                displayStr = QStringLiteral("★★★★★");
+        if (fr.datatype != QLatin1String("Image")) {
+            for (int recIdx : std::as_const(filteredIndices)) {
+                const QString raw = buckets[recIdx].valuesByField.value(fr.id);
+                if (raw.isEmpty())
+                    continue;
+                QString displayStr = raw;
+                double numVal = 0.0;
+                const bool isNum = parseDoubleFlexible(raw, &numVal);
+                if (fr.datatype == QLatin1String("Euros") && isNum) {
+                    displayStr = QLocale().toString(numVal, 'f', 2) + QStringLiteral(" €");
+                } else if ((fr.datatype == QLatin1String("Number") || fr.datatype == QLatin1String("Formula")) && isNum) {
+                    const int dec = raw.contains(QLatin1Char('.')) ? 2 : 0;
+                    displayStr = QLocale().toString(numVal, 'f', dec);
+                } else if (fr.datatype == QLatin1String("Stars")) {
+                    displayStr = QStringLiteral("★★★★★");
+                }
+                const int pad = (fr.datatype == QLatin1String("Status") || fr.datatype == QLatin1String("YesNo")) ? 40 : 28;
+                contentWidth = std::max(contentWidth, cellFm.horizontalAdvance(displayStr) + pad);
             }
-            const int pad = (fr.datatype == QLatin1String("Status") || fr.datatype == QLatin1String("YesNo")) ? 40 : 28;
-            contentWidth = std::max(contentWidth, cellFm.horizontalAdvance(displayStr) + pad);
         }
         contentWidth = std::min(contentWidth, 560);
         fmap.insert(QStringLiteral("contentWidth"), contentWidth);
@@ -840,9 +929,29 @@ void Backend::reloadFieldsAndRecords() {
                 badgeColor = sColors.value(raw, QStringLiteral("#4b5563")).toString();
             }
             cell.insert(QStringLiteral("badgeColor"), badgeColor);
+
+            QString imgUrl;
+            QString imgName;
+            int imgWidth = 0;
+            int imgHeight = 0;
+            if (fr.datatype == QLatin1String("Image") && !raw.isEmpty()) {
+                const int blobId = parseBlobId(raw);
+                if (blobId > 0 && blobMetaById.contains(blobId)) {
+                    const BlobMeta &meta = blobMetaById[blobId];
+                    imgUrl = imageUrl(raw);
+                    imgName = meta.filename;
+                    imgWidth = meta.width;
+                    imgHeight = meta.height;
+                }
+            }
+            cell.insert(QStringLiteral("imageUrl"), imgUrl);
+            cell.insert(QStringLiteral("imageName"), imgName);
+            cell.insert(QStringLiteral("imageWidth"), imgWidth);
+            cell.insert(QStringLiteral("imageHeight"), imgHeight);
+
             cells.append(cell);
 
-            if (!raw.isEmpty() && summaryParts.size() < 2)
+            if (!raw.isEmpty() && fr.datatype != QLatin1String("Image") && summaryParts.size() < 2)
                 summaryParts.append(raw);
         }
 
@@ -1924,7 +2033,10 @@ bool Backend::exportCsvFile(const QString &filePath) {
         const QVariantList cells = rv.toMap().value(QStringLiteral("cells")).toList();
         QStringList rowCells;
         for (const QVariant &cv : cells) {
-            QString val = cv.toMap().value(QStringLiteral("rawValue")).toString();
+            const QVariantMap cmap = cv.toMap();
+            QString val = cmap.value(QStringLiteral("rawValue")).toString();
+            if (cmap.value(QStringLiteral("datatype")).toString() == QLatin1String("Image"))
+                val = cmap.value(QStringLiteral("imageName")).toString();
             rowCells.append(escapeCsvCell(val));
         }
         saveFile.write((rowCells.join(QLatin1Char(',')) + QLatin1Char('\n')).toUtf8());
@@ -1973,6 +2085,159 @@ bool Backend::handleDroppedUrls(const QList<QUrl> &urls) {
         }
     }
     return handled;
+}
+
+int Backend::parseBlobId(const QString &rawValue) {
+    const QString trimmed = rawValue.trimmed();
+    if (!trimmed.startsWith(QLatin1String("blob:")))
+        return 0;
+    bool ok = false;
+    const int id = trimmed.mid(5).toInt(&ok);
+    return (ok && id > 0) ? id : 0;
+}
+
+QString Backend::imageUrl(const QString &rawValue) const {
+    const int blobId = parseBlobId(rawValue);
+    if (blobId <= 0)
+        return {};
+    return QStringLiteral("image://aikku/%1/%2").arg(m_imageGeneration).arg(blobId);
+}
+
+QVariantMap Backend::blobInfo(const QString &rawValue) const {
+    const int blobId = parseBlobId(rawValue);
+    if (blobId <= 0)
+        return {};
+
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+    if (!db.isOpen())
+        return {};
+
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("SELECT filename, mime_type, width, height FROM blobs WHERE id = ? LIMIT 1"));
+    q.addBindValue(blobId);
+    if (!q.exec() || !q.next())
+        return {};
+
+    QVariantMap info;
+    info.insert(QStringLiteral("id"), blobId);
+    info.insert(QStringLiteral("filename"), q.value(0).toString());
+    info.insert(QStringLiteral("mimeType"), q.value(1).toString());
+    info.insert(QStringLiteral("width"), q.value(2).toInt());
+    info.insert(QStringLiteral("height"), q.value(3).toInt());
+    info.insert(QStringLiteral("url"), imageUrl(rawValue));
+    return info;
+}
+
+void Backend::pickImageDialog(int fieldId) {
+    if (!m_filePicker) {
+        setError(tr("No file picker is configured."));
+        return;
+    }
+    m_pendingImageFieldId = fieldId;
+    m_filePicker->openImage();
+}
+
+QString Backend::importImageFile(const QString &filePath) {
+    clearMessages();
+    if (filePath.trimmed().isEmpty())
+        return {};
+
+    QImageReader reader(filePath);
+    reader.setAutoTransform(true);
+    QImage img = reader.read();
+    if (img.isNull()) {
+        setError(tr("Could not read image file: %1").arg(reader.errorString()));
+        return {};
+    }
+
+    if (img.width() > kMaxStoredImageDimension || img.height() > kMaxStoredImageDimension) {
+        img = img.scaled(kMaxStoredImageDimension, kMaxStoredImageDimension,
+                         Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    buffer.open(QIODevice::WriteOnly);
+
+    const bool usePng = img.hasAlphaChannel();
+    const char *format = usePng ? "PNG" : "JPEG";
+    const QString mimeType = usePng ? QStringLiteral("image/png") : QStringLiteral("image/jpeg");
+    if (!img.save(&buffer, format, usePng ? -1 : 88)) {
+        setError(tr("Could not encode image data."));
+        return {};
+    }
+
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+    if (!db.isOpen())
+        return {};
+
+    const QString filename = QFileInfo(filePath).fileName();
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral(
+        "INSERT INTO blobs (filename, mime_type, width, height, data, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)"));
+    q.addBindValue(filename);
+    q.addBindValue(mimeType);
+    q.addBindValue(img.width());
+    q.addBindValue(img.height());
+    q.addBindValue(encoded);
+    q.addBindValue(nowIso());
+    if (!q.exec()) {
+        setError(tr("Could not store image in database: %1").arg(q.lastError().text()));
+        return {};
+    }
+
+    const int blobId = q.lastInsertId().toInt();
+    return QStringLiteral("blob:%1").arg(blobId);
+}
+
+QString Backend::importImageUrl(const QUrl &url) {
+    if (!url.isValid())
+        return {};
+    const QString local = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    return importImageFile(local);
+}
+
+QImage Backend::loadBlobImage(int blobId) const {
+    if (blobId <= 0)
+        return {};
+
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+    if (!db.isOpen())
+        return {};
+
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("SELECT data FROM blobs WHERE id = ? LIMIT 1"));
+    q.addBindValue(blobId);
+    if (!q.exec() || !q.next())
+        return {};
+
+    QImage img;
+    img.loadFromData(q.value(0).toByteArray());
+    return img;
+}
+
+QImage Backend::loadBlobImageFromFile(const QString &dbPath, int blobId) {
+    if (dbPath.isEmpty() || blobId <= 0)
+        return {};
+
+    const QString connName = QStringLiteral("aikku_blob_ro_%1").arg(++s_connectionCounter);
+    QImage img;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+        db.setDatabaseName(dbPath);
+        db.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+        if (db.open()) {
+            QSqlQuery q(db);
+            q.prepare(QStringLiteral("SELECT data FROM blobs WHERE id = ? LIMIT 1"));
+            q.addBindValue(blobId);
+            if (q.exec() && q.next())
+                img.loadFromData(q.value(0).toByteArray());
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return img;
 }
 
 Backend::Snapshot Backend::captureSnapshot() const {

@@ -16,6 +16,7 @@ public:
     void openCsv() override;
     void exportCsv(const QUrl &suggestedUrl) override;
     void openDatabase() override;
+    void openImage() override;
 
 private slots:
     void handleResponse(uint response, const QVariantMap &results);
@@ -25,7 +26,8 @@ private:
         None,
         OpenCsv,
         ExportCsv,
-        OpenDatabase
+        OpenDatabase,
+        OpenImage
     };
 
     void requestFile(const QString &method, const QString &title,

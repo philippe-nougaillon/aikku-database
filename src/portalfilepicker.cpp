@@ -103,6 +103,29 @@ PortalFileFilters sqliteFilters() {
     };
 }
 
+PortalFileFilter imageFilter() {
+    return {
+        QCoreApplication::translate("PortalFilePicker", "Image files"),
+        {
+            {1, QStringLiteral("image/*")},
+            {0, QStringLiteral("*.png")},
+            {0, QStringLiteral("*.jpg")},
+            {0, QStringLiteral("*.jpeg")},
+            {0, QStringLiteral("*.webp")},
+            {0, QStringLiteral("*.gif")},
+            {0, QStringLiteral("*.bmp")},
+            {0, QStringLiteral("*.svg")},
+        },
+    };
+}
+
+PortalFileFilters imageFilters() {
+    return {
+        imageFilter(),
+        {QCoreApplication::translate("PortalFilePicker", "All files"), {{0, QStringLiteral("*")}}},
+    };
+}
+
 QString portalToken() {
     return QStringLiteral("aikku_%1").arg(QRandomGenerator::global()->generate());
 }
@@ -116,6 +139,11 @@ QByteArray portalPathBytes(const QString &path) {
 QString defaultFolder() {
     const QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     return QDir(docs).exists() ? docs : QDir::homePath();
+}
+
+QString defaultPicturesFolder() {
+    const QString pics = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    return QDir(pics).exists() ? pics : defaultFolder();
 }
 } // namespace
 
@@ -159,6 +187,18 @@ void PortalFilePicker::openDatabase() {
     options.insert(QStringLiteral("current_filter"), QVariant::fromValue(sqliteFilter()));
 
     requestFile(QStringLiteral("OpenFile"), tr("Open SQLite Database"), options, Action::OpenDatabase);
+}
+
+void PortalFilePicker::openImage() {
+    QVariantMap options;
+    options.insert(QStringLiteral("accept_label"), tr("Select"));
+    options.insert(QStringLiteral("modal"), true);
+    options.insert(QStringLiteral("multiple"), false);
+    options.insert(QStringLiteral("current_folder"), portalPathBytes(defaultPicturesFolder()));
+    options.insert(QStringLiteral("filters"), QVariant::fromValue(imageFilters()));
+    options.insert(QStringLiteral("current_filter"), QVariant::fromValue(imageFilter()));
+
+    requestFile(QStringLiteral("OpenFile"), tr("Choose Image"), options, Action::OpenImage);
 }
 
 bool PortalFilePicker::connectToRequestPath(const QString &path) {
@@ -261,6 +301,8 @@ void PortalFilePicker::handleResponse(uint response, const QVariantMap &results)
         emit csvExportSelected(url);
     } else if (action == Action::OpenDatabase) {
         emit databaseOpenSelected(url);
+    } else if (action == Action::OpenImage) {
+        emit imageOpenSelected(url);
     }
 }
 

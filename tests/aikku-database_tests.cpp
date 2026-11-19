@@ -1,14 +1,17 @@
 #include <QDir>
 #include <QFile>
+#include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
 
 #include "backend.h"
+#include "blobimageprovider.h"
 #include "filepicker.h"
 #include "theme.h"
 #include "translator.h"
@@ -22,6 +25,7 @@ public:
     QUrl nextCsvOpenUrl;
     QUrl nextCsvExportUrl;
     QUrl nextDbOpenUrl;
+    QUrl nextImageOpenUrl;
 
     void openCsv() override {
         if (nextCsvOpenUrl.isValid())
@@ -33,6 +37,10 @@ public:
     void openDatabase() override {
         if (nextDbOpenUrl.isValid())
             emit databaseOpenSelected(nextDbOpenUrl);
+    }
+    void openImage() override {
+        if (nextImageOpenUrl.isValid())
+            emit imageOpenSelected(nextImageOpenUrl);
     }
 };
 
@@ -223,6 +231,111 @@ private slots:
         QCOMPARE(backend.recordCount(), 1);
     }
 
+    void imageFieldBlobsAndProvider() {
+        QTemporaryDir dir;
+        const QString smallPngPath = dir.filePath("badge.png");
+        QImage smallImg(120, 80, QImage::Format_ARGB32);
+        smallImg.fill(QColor(20, 140, 220, 200));
+        QVERIFY(smallImg.save(smallPngPath, "PNG"));
+
+        const QString bigJpgPath = dir.filePath("banner.jpg");
+        QImage bigImg(2400, 1200, QImage::Format_RGB32);
+        bigImg.fill(QColor(220, 120, 40));
+        QVERIFY(bigImg.save(bigJpgPath, "JPEG", 90));
+
+        FakeFilePicker picker;
+        picker.nextImageOpenUrl = QUrl::fromLocalFile(smallPngPath);
+
+        Backend backend(dir.filePath("images.sqlite"), &picker);
+        QVERIFY(backend.createTable("Catalog", true) > 0);
+        const int fTitle = backend.addField("Title", "Text", "", true, false);
+        const int fPhoto = backend.addField("Photo", "Image", "", false, true);
+        QVERIFY(fTitle > 0 && fPhoto > 0);
+
+        // Pick image via portal picker interface.
+        QSignalSpy spy(&backend, &Backend::imagePicked);
+        backend.pickImageDialog(fPhoto);
+        QCOMPARE(spy.count(), 1);
+        const int pickedFieldId = spy.at(0).at(0).toInt();
+        const QString blobRef = spy.at(0).at(1).toString();
+        QCOMPARE(pickedFieldId, fPhoto);
+        QVERIFY(blobRef.startsWith("blob:"));
+
+        // Verify stored blob metadata & image provider loading.
+        const QVariantMap info = backend.blobInfo(blobRef);
+        QCOMPARE(info.value("filename").toString(), QString("badge.png"));
+        QCOMPARE(info.value("mimeType").toString(), QString("image/png"));
+        QCOMPARE(info.value("width").toInt(), 120);
+        QCOMPARE(info.value("height").toInt(), 80);
+        QVERIFY(info.value("url").toString().startsWith("image://aikku/"));
+
+        // Save record and check cell metadata.
+        QVariantMap row1;
+        row1.insert(QString::number(fTitle), "Blue Widget");
+        row1.insert(QString::number(fPhoto), blobRef);
+        QCOMPARE(backend.saveRecord(0, row1), 1);
+        QCOMPARE(backend.recordCount(), 1);
+
+        const QVariantList cells = backend.records().first().toMap().value("cells").toList();
+        QCOMPARE(cells.size(), 2);
+        const QVariantMap photoCell = cells.at(1).toMap();
+        QCOMPARE(photoCell.value("imageName").toString(), QString("badge.png"));
+        QCOMPARE(photoCell.value("imageWidth").toInt(), 120);
+        QCOMPARE(photoCell.value("imageHeight").toInt(), 80);
+        QVERIFY(photoCell.value("imageUrl").toString().startsWith("image://aikku/"));
+
+        // Search matches filename, NOT internal "blob:" prefix.
+        backend.setSearchText("badge.png");
+        QCOMPARE(backend.recordCount(), 1);
+        backend.setSearchText("blob:");
+        QCOMPARE(backend.recordCount(), 0);
+        backend.clearFilters();
+        QCOMPARE(backend.recordCount(), 1);
+
+        // CSV export writes filename rather than "blob:<id>".
+        const QString csvOut = dir.filePath("catalog.csv");
+        QVERIFY(backend.exportCsvFile(csvOut));
+        QFile csvFile(csvOut);
+        QVERIFY(csvFile.open(QIODevice::ReadOnly));
+        const QString csvText = QString::fromUtf8(csvFile.readAll());
+        QVERIFY(csvText.contains("Blue Widget,badge.png"));
+        QVERIFY(!csvText.contains("blob:"));
+
+        // Undo & redo preserve the embedded blob.
+        QVERIFY(backend.deleteRecord(1));
+        QCOMPARE(backend.recordCount(), 0);
+        backend.undo();
+        QCOMPARE(backend.recordCount(), 1);
+        QCOMPARE(backend.recordValues(1).value(QString::number(fPhoto)).toString(), blobRef);
+
+        // Oversized image is automatically scaled down to <= 1600px.
+        const QString bigRef = backend.importImageFile(bigJpgPath);
+        QVERIFY(bigRef.startsWith("blob:"));
+        const QVariantMap bigInfo = backend.blobInfo(bigRef);
+        QCOMPARE(bigInfo.value("width").toInt(), 1600);
+        QCOMPARE(bigInfo.value("height").toInt(), 800);
+        QCOMPARE(bigInfo.value("mimeType").toString(), QString("image/jpeg"));
+
+        // BlobImageProvider serves both full-resolution and scaled thumbnails, and read-only loader works.
+        BlobImageProvider provider(&backend);
+        QSize origSize;
+        const int bigBlobId = Backend::parseBlobId(bigRef);
+        const QImage fullLoaded = provider.requestImage(QString("1/%1").arg(bigBlobId), &origSize, QSize());
+        QVERIFY(!fullLoaded.isNull());
+        QCOMPARE(origSize, QSize(1600, 800));
+        QCOMPARE(fullLoaded.size(), QSize(1600, 800));
+
+        QSize thumbOrigSize;
+        const QImage thumbLoaded = provider.requestImage(QString("1/%1").arg(bigBlobId), &thumbOrigSize, QSize(80, 80));
+        QVERIFY(!thumbLoaded.isNull());
+        QCOMPARE(thumbOrigSize, QSize(1600, 800));
+        QCOMPARE(thumbLoaded.size(), QSize(160, 80));
+
+        const QImage roLoaded = Backend::loadBlobImageFromFile(backend.threadSafeDatabasePath(), bigBlobId);
+        QVERIFY(!roLoaded.isNull());
+        QCOMPARE(roLoaded.size(), QSize(1600, 800));
+    }
+
     void themeFallsBack() {
         QTemporaryDir dir;
         Theme theme(dir.path());
@@ -303,6 +416,7 @@ private slots:
         backend.createSampleTable();
 
         QQmlApplicationEngine engine;
+        engine.addImageProvider("aikku", new BlobImageProvider(&backend));
         engine.rootContext()->setContextProperty("translator", &translator);
         engine.rootContext()->setContextProperty("theme", &theme);
         engine.rootContext()->setContextProperty("backend", &backend);
@@ -393,6 +507,65 @@ private slots:
         QVERIFY2(boxBottomRightInPanel.y() <= fieldsDialogPanel->height(),
                  qPrintable(QString("Expected attribute form box bottom (%1) <= dialog panel height (%2)")
                             .arg(boxBottomRightInPanel.y()).arg(fieldsDialogPanel->height())));
+
+        // Close attributes dialog, add an Image attribute, attach an image, and verify grid thumbnail + click-to-zoom lightbox.
+        window->setProperty("fieldsDialogVisible", false);
+        const int fPhoto = backend.addField("Photo", "Image", "", false, false);
+        QVERIFY(fPhoto > 0);
+
+        const QString imgFile = dir.filePath("laptop.png");
+        QImage sampleImg(320, 200, QImage::Format_ARGB32);
+        sampleImg.fill(QColor(80, 180, 120));
+        QVERIFY(sampleImg.save(imgFile, "PNG"));
+
+        const QString blobRef = backend.importImageFile(imgFile);
+        QVERIFY(blobRef.startsWith("blob:"));
+
+        QVariantMap rowWithImg = backend.recordValues(1);
+        rowWithImg.insert(QString::number(fPhoto), blobRef);
+        QVERIFY(backend.saveRecord(1, rowWithImg) > 0);
+        QTest::qWait(80);
+
+        // Verify the image thumbnail is visible in the records grid.
+        const int photoColIdx = backend.fieldCount() - 1;
+        auto *gridThumb = findVisualItem(window->contentItem(), QString("gridImageThumb_0_%1").arg(photoColIdx));
+        QVERIFY(gridThumb != nullptr);
+        QVERIFY(gridThumb->isVisible());
+        QCOMPARE(gridThumb->width(), 40.0);
+        QCOMPARE(gridThumb->height(), 40.0);
+
+        // Verify the record form renders the Image field picker box properly.
+        QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, 1));
+        QTest::qWait(60);
+        auto *recordImgField = findVisualItem(window->contentItem(), QString("recordImageField_%1").arg(photoColIdx));
+        QVERIFY(recordImgField != nullptr);
+        QVERIFY(recordImgField->isVisible());
+        QCOMPARE(recordImgField->height(), 84.0);
+        QMetaObject::invokeMethod(window, "closeRecordDialog");
+        QTest::qWait(40);
+
+        // Verify the click-to-zoom lightbox opens, loads the embedded image, zooms, and closes cleanly.
+        const QString imgUrl = backend.imageUrl(blobRef);
+        QMetaObject::invokeMethod(window, "openImagePreview",
+                                  Q_ARG(QVariant, imgUrl),
+                                  Q_ARG(QVariant, QString("laptop.png")),
+                                  Q_ARG(QVariant, 320),
+                                  Q_ARG(QVariant, 200),
+                                  Q_ARG(QVariant, QString("Photo")));
+        QTest::qWait(80);
+        QCOMPARE(window->property("imagePreviewVisible").toBool(), true);
+
+        auto *previewOverlay = findVisualItem(window->contentItem(), "imagePreviewOverlay");
+        auto *previewImg = findVisualItem(window->contentItem(), "imagePreviewImage");
+        QVERIFY(previewOverlay != nullptr && previewImg != nullptr);
+        QVERIFY(previewOverlay->isVisible());
+        QCOMPARE(previewImg->property("implicitWidth").toInt(), 320);
+        QCOMPARE(previewImg->property("implicitHeight").toInt(), 200);
+
+        QMetaObject::invokeMethod(window, "adjustImagePreviewZoom", Q_ARG(QVariant, 1.0));
+        QCOMPARE(window->property("imagePreviewZoom").toDouble(), 2.0);
+        QMetaObject::invokeMethod(window, "closeImagePreview");
+        QCOMPARE(window->property("imagePreviewVisible").toBool(), false);
     }
 
 private:
