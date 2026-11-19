@@ -3398,36 +3398,43 @@ ApplicationWindow {
             objectName: "imagePreviewOverlay"
             visible: win.imagePreviewVisible
             anchors.fill: parent
-            color: "#e609090c"
+            color: "#cc09090c"
             z: 100
 
+            // Absorb all pointer events on the backdrop so clicks never pass through to underlying controls.
             MouseArea {
                 anchors.fill: parent
-                onClicked: win.closeImagePreview()
+                hoverEnabled: true
+                preventStealing: true
+                onPressed: (mouse) => { mouse.accepted = true }
+                onClicked: (mouse) => {
+                    mouse.accepted = true
+                    Qt.callLater(win.closeImagePreview)
+                }
             }
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 20
-                spacing: 12
+            DialogPanel {
+                id: imagePreviewPanel
+                objectName: "imagePreviewPanel"
+                anchors.centerIn: parent
+                width: Math.min(760, parent.width - 140)
+                height: Math.min(540, parent.height - 120)
 
-                // Top Bar (Title, Dimensions, Zoom Controls, Close)
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 44
-                    height: 44
-                    radius: Math.min(6, theme.radius)
-                    color: "#cc18181f"
-                    border.width: 1
-                    border.color: "#2e2e38"
+                // Block clicks inside the panel from reaching the backdrop MouseArea.
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onPressed: (mouse) => { mouse.accepted = true }
+                }
 
-                    // Prevent clicks on toolbar from closing the lightbox
-                    MouseArea { anchors.fill: parent }
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
 
+                    // Top Bar (Title, Dimensions, Zoom Controls, Close)
                     RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 14
-                        anchors.rightMargin: 10
+                        Layout.fillWidth: true
                         spacing: 10
 
                         Label {
@@ -3458,7 +3465,7 @@ ApplicationWindow {
                             implicitWidth: 28; implicitHeight: 28
                             width: 28; height: 28
                             radius: Math.min(4, theme.radius)
-                            color: zoomOutHover.hovered ? "#2c2c36" : "#202028"
+                            color: zoomOutMouse.containsMouse ? "#2c2c36" : "#202028"
                             border.width: 1
                             border.color: "#34343e"
                             opacity: win.imagePreviewZoom > 1.0 ? 1.0 : 0.45
@@ -3469,8 +3476,16 @@ ApplicationWindow {
                                 color: "white"
                                 font.pixelSize: 14
                             }
-                            HoverHandler { id: zoomOutHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: win.adjustImagePreviewZoom(-0.5) }
+                            MouseArea {
+                                id: zoomOutMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    mouse.accepted = true
+                                    win.adjustImagePreviewZoom(-0.5)
+                                }
+                            }
                         }
 
                         // Zoom % / Reset to Fit
@@ -3480,7 +3495,7 @@ ApplicationWindow {
                             width: zoomPctLbl.implicitWidth + 16
                             height: 28
                             radius: Math.min(4, theme.radius)
-                            color: zoomResetHover.hovered ? "#2c2c36" : "#202028"
+                            color: zoomResetMouse.containsMouse ? "#2c2c36" : "#202028"
                             border.width: 1
                             border.color: "#34343e"
 
@@ -3492,8 +3507,16 @@ ApplicationWindow {
                                 font.pixelSize: 12
                                 font.family: "monospace"
                             }
-                            HoverHandler { id: zoomResetHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: win.imagePreviewZoom = 1.0 }
+                            MouseArea {
+                                id: zoomResetMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    mouse.accepted = true
+                                    win.imagePreviewZoom = 1.0
+                                }
+                            }
                         }
 
                         // Zoom In (+)
@@ -3501,7 +3524,7 @@ ApplicationWindow {
                             implicitWidth: 28; implicitHeight: 28
                             width: 28; height: 28
                             radius: Math.min(4, theme.radius)
-                            color: zoomInHover.hovered ? "#2c2c36" : "#202028"
+                            color: zoomInMouse.containsMouse ? "#2c2c36" : "#202028"
                             border.width: 1
                             border.color: "#34343e"
                             opacity: win.imagePreviewZoom < 4.0 ? 1.0 : 0.45
@@ -3512,8 +3535,16 @@ ApplicationWindow {
                                 color: "white"
                                 font.pixelSize: 14
                             }
-                            HoverHandler { id: zoomInHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: win.adjustImagePreviewZoom(0.5) }
+                            MouseArea {
+                                id: zoomInMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    mouse.accepted = true
+                                    win.adjustImagePreviewZoom(0.5)
+                                }
+                            }
                         }
 
                         // Close Button
@@ -3522,92 +3553,103 @@ ApplicationWindow {
                             implicitWidth: 28; implicitHeight: 28
                             width: 28; height: 28
                             radius: Math.min(4, theme.radius)
-                            color: closePrevHover.hovered ? "#3f181c" : "#202028"
+                            color: closePrevMouse.containsMouse ? "#3f181c" : "#202028"
                             border.width: 1
-                            border.color: closePrevHover.hovered ? "#dc2626" : "#34343e"
+                            border.color: closePrevMouse.containsMouse ? "#dc2626" : "#34343e"
 
                             Label {
                                 anchors.centerIn: parent
                                 text: "×"
-                                color: closePrevHover.hovered ? "#fca5a5" : "#d4d4dc"
+                                color: closePrevMouse.containsMouse ? "#fca5a5" : "#d4d4dc"
                                 font.pixelSize: 16
                             }
-                            HoverHandler { id: closePrevHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: win.closeImagePreview() }
-                        }
-                    }
-                }
-
-                // Image Viewport (Click to toggle zoom, Wheel to zoom, Drag to pan)
-                Flickable {
-                    id: previewFlick
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    interactive: win.imagePreviewZoom > 1.01
-
-                    readonly property real maxFitW: Math.max(120, width - 24)
-                    readonly property real maxFitH: Math.max(120, height - 24)
-                    readonly property real natW: previewImg.implicitWidth > 0 ? previewImg.implicitWidth : maxFitW
-                    readonly property real natH: previewImg.implicitHeight > 0 ? previewImg.implicitHeight : maxFitH
-                    readonly property real fitScale: Math.min(1.0, maxFitW / natW, maxFitH / natH)
-                    readonly property real fitW: natW * fitScale
-                    readonly property real fitH: natH * fitScale
-
-                    contentWidth: Math.max(width, fitW * win.imagePreviewZoom)
-                    contentHeight: Math.max(height, fitH * win.imagePreviewZoom)
-
-                    WheelHandler {
-                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                        onWheel: (event) => {
-                            if (event.angleDelta.y > 0)
-                                win.adjustImagePreviewZoom(0.25)
-                            else if (event.angleDelta.y < 0)
-                                win.adjustImagePreviewZoom(-0.25)
-                            event.accepted = true
-                        }
-                    }
-
-                    Item {
-                        width: previewFlick.contentWidth
-                        height: previewFlick.contentHeight
-
-                        // Clicking empty area around the image closes the lightbox
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: win.closeImagePreview()
-                        }
-
-                        Image {
-                            id: previewImg
-                            objectName: "imagePreviewImage"
-                            anchors.centerIn: parent
-                            width: previewFlick.fitW * win.imagePreviewZoom
-                            height: previewFlick.fitH * win.imagePreviewZoom
-                            source: win.imagePreviewUrl
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                            mipmap: true
-                            asynchronous: false
-
                             MouseArea {
+                                id: closePrevMouse
                                 anchors.fill: parent
-                                cursorShape: win.imagePreviewZoom > 1.01 ? Qt.OpenHandCursor : Qt.PointingHandCursor
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
                                 onClicked: (mouse) => {
                                     mouse.accepted = true
-                                    win.imagePreviewZoom = win.imagePreviewZoom > 1.01 ? 1.0 : 2.0
+                                    Qt.callLater(win.closeImagePreview)
                                 }
                             }
                         }
                     }
-                }
 
-                Label {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("Click image to zoom · Scroll to adjust · Esc to close")
-                    color: "#8a8a94"
-                    font.pixelSize: 11
+                    // Image Viewport (Click to toggle zoom, Wheel to zoom, Drag to pan)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: Math.min(4, theme.radius)
+                        color: "#0c0c10"
+                        border.width: 1
+                        border.color: "#24242d"
+                        clip: true
+
+                        Flickable {
+                            id: previewFlick
+                            anchors.fill: parent
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            interactive: win.imagePreviewZoom > 1.01
+
+                            readonly property real maxFitW: Math.max(120, width - 20)
+                            readonly property real maxFitH: Math.max(120, height - 20)
+                            readonly property real natW: previewImg.implicitWidth > 0 ? previewImg.implicitWidth : maxFitW
+                            readonly property real natH: previewImg.implicitHeight > 0 ? previewImg.implicitHeight : maxFitH
+                            readonly property real fitScale: Math.min(1.0, maxFitW / natW, maxFitH / natH)
+                            readonly property real fitW: natW * fitScale
+                            readonly property real fitH: natH * fitScale
+
+                            contentWidth: Math.max(width, fitW * win.imagePreviewZoom)
+                            contentHeight: Math.max(height, fitH * win.imagePreviewZoom)
+
+                            WheelHandler {
+                                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                onWheel: (event) => {
+                                    if (event.angleDelta.y > 0)
+                                        win.adjustImagePreviewZoom(0.25)
+                                    else if (event.angleDelta.y < 0)
+                                        win.adjustImagePreviewZoom(-0.25)
+                                    event.accepted = true
+                                }
+                            }
+
+                            Item {
+                                width: previewFlick.contentWidth
+                                height: previewFlick.contentHeight
+
+                                Image {
+                                    id: previewImg
+                                    objectName: "imagePreviewImage"
+                                    anchors.centerIn: parent
+                                    width: previewFlick.fitW * win.imagePreviewZoom
+                                    height: previewFlick.fitH * win.imagePreviewZoom
+                                    source: win.imagePreviewUrl
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    mipmap: true
+                                    asynchronous: false
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: win.imagePreviewZoom > 1.01 ? Qt.OpenHandCursor : Qt.PointingHandCursor
+                                        onClicked: (mouse) => {
+                                            mouse.accepted = true
+                                            win.imagePreviewZoom = win.imagePreviewZoom > 1.01 ? 1.0 : 2.0
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: qsTr("Click image to zoom · Scroll to adjust · Esc to close")
+                        color: "#8a8a94"
+                        font.pixelSize: 11
+                    }
                 }
             }
         }

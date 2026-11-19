@@ -660,16 +660,26 @@ private slots:
         QCOMPARE(window->property("imagePreviewVisible").toBool(), true);
 
         auto *previewOverlay = findVisualItem(window->contentItem(), "imagePreviewOverlay");
+        auto *previewPanel = findVisualItem(window->contentItem(), "imagePreviewPanel");
         auto *previewImg = findVisualItem(window->contentItem(), "imagePreviewImage");
-        QVERIFY(previewOverlay != nullptr && previewImg != nullptr);
+        auto *previewCloseBtn = findVisualItem(window->contentItem(), "imagePreviewCloseBtn");
+        QVERIFY(previewOverlay != nullptr && previewPanel != nullptr && previewImg != nullptr && previewCloseBtn != nullptr);
         QVERIFY(previewOverlay->isVisible());
+        QVERIFY(previewPanel->width() <= 760.0 && previewPanel->height() <= 540.0);
         QCOMPARE(previewImg->property("implicitWidth").toInt(), 320);
         QCOMPARE(previewImg->property("implicitHeight").toInt(), 200);
 
         QMetaObject::invokeMethod(window, "adjustImagePreviewZoom", Q_ARG(QVariant, 1.0));
         QCOMPARE(window->property("imagePreviewZoom").toDouble(), 2.0);
-        QMetaObject::invokeMethod(window, "closeImagePreview");
+
+        // Clicking the Close button closes the preview without leaking clicks to Delete buttons underneath.
+        const QPoint closeCenter = previewCloseBtn->mapToScene(
+            QPointF(previewCloseBtn->width() / 2.0, previewCloseBtn->height() / 2.0)).toPoint();
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, closeCenter);
+        QTest::qWait(60);
         QCOMPARE(window->property("imagePreviewVisible").toBool(), false);
+        QCOMPARE(window->property("deleteTableConfirmVisible").toBool(), false);
+        QCOMPARE(window->property("deleteRecordConfirmVisible").toBool(), false);
 
         // Add a File attribute, attach a PDF, and verify grid chip + record form attachment box.
         const int fManual = backend.addField("Manual", "File", "", false, false);
