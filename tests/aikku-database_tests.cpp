@@ -26,6 +26,8 @@ public:
     QUrl nextCsvExportUrl;
     QUrl nextDbOpenUrl;
     QUrl nextImageOpenUrl;
+    QUrl nextAttachmentOpenUrl;
+    QUrl nextAttachmentSaveUrl;
 
     void openCsv() override {
         if (nextCsvOpenUrl.isValid())
@@ -41,6 +43,13 @@ public:
     void openImage() override {
         if (nextImageOpenUrl.isValid())
             emit imageOpenSelected(nextImageOpenUrl);
+    }
+    void openAttachment() override {
+        if (nextAttachmentOpenUrl.isValid())
+            emit attachmentOpenSelected(nextAttachmentOpenUrl);
+    }
+    void saveAttachment(const QUrl &suggestedUrl) override {
+        emit attachmentSaveSelected(nextAttachmentSaveUrl.isValid() ? nextAttachmentSaveUrl : suggestedUrl);
     }
 };
 
@@ -336,6 +345,101 @@ private slots:
         QCOMPARE(roLoaded.size(), QSize(1600, 800));
     }
 
+    void fileFieldAttachments() {
+        QTemporaryDir dir;
+        const QString pdfPath = dir.filePath("contract-2026.pdf");
+        const QByteArray pdfBytes("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
+        write(pdfPath, pdfBytes);
+
+        const QString notePath = dir.filePath("notes.txt");
+        const QByteArray noteBytes("Quarterly notes and checklist.\n");
+        write(notePath, noteBytes);
+
+        const QString savedOutPath = dir.filePath("saved-copy.pdf");
+
+        FakeFilePicker picker;
+        picker.nextAttachmentOpenUrl = QUrl::fromLocalFile(pdfPath);
+        picker.nextAttachmentSaveUrl = QUrl::fromLocalFile(savedOutPath);
+
+        Backend backend(dir.filePath("files.sqlite"), &picker);
+        QVERIFY(backend.createTable("Docs", true) > 0);
+        const int fTitle = backend.addField("Title", "Text", "", true, false);
+        const int fDoc = backend.addField("Document", "File", "", false, true);
+        QVERIFY(fTitle > 0 && fDoc > 0);
+
+        // Pick attachment via portal picker.
+        QSignalSpy spy(&backend, &Backend::filePicked);
+        backend.pickFileDialog(fDoc);
+        QCOMPARE(spy.count(), 1);
+        QCOMPARE(spy.at(0).at(0).toInt(), fDoc);
+        const QString blobRef = spy.at(0).at(1).toString();
+        QVERIFY(blobRef.startsWith("blob:"));
+
+        // Inspect blob metadata.
+        const QVariantMap info = backend.blobInfo(blobRef);
+        QCOMPARE(info.value("filename").toString(), QString("contract-2026.pdf"));
+        QCOMPARE(info.value("extension").toString(), QString("PDF"));
+        QCOMPARE(info.value("sizeBytes").toLongLong(), qint64(pdfBytes.size()));
+        QVERIFY(!info.value("sizeLabel").toString().isEmpty());
+
+        // Save record and verify cell metadata.
+        QVariantMap row1;
+        row1.insert(QString::number(fTitle), "Vendor Agreement");
+        row1.insert(QString::number(fDoc), blobRef);
+        QCOMPARE(backend.saveRecord(0, row1), 1);
+
+        const QVariantMap docCell = backend.records().first().toMap().value("cells").toList().at(1).toMap();
+        QCOMPARE(docCell.value("fileName").toString(), QString("contract-2026.pdf"));
+        QCOMPARE(docCell.value("fileExt").toString(), QString("PDF"));
+        QCOMPARE(docCell.value("fileSizeBytes").toLongLong(), qint64(pdfBytes.size()));
+
+        // Search by filename works, searching internal "blob:" does not.
+        backend.setSearchText("contract-2026");
+        QCOMPARE(backend.recordCount(), 1);
+        backend.setSearchText("blob:");
+        QCOMPARE(backend.recordCount(), 0);
+        backend.clearFilters();
+
+        // Quick filter by attached filename.
+        backend.setFieldFilter(fDoc, "contract-2026.pdf");
+        QCOMPARE(backend.recordCount(), 1);
+        backend.clearFilters();
+
+        // CSV export writes filename rather than "blob:<id>".
+        const QString csvOut = dir.filePath("docs.csv");
+        QVERIFY(backend.exportCsvFile(csvOut));
+        QFile csvFile(csvOut);
+        QVERIFY(csvFile.open(QIODevice::ReadOnly));
+        const QString csvText = QString::fromUtf8(csvFile.readAll());
+        QVERIFY(csvText.contains("Vendor Agreement,contract-2026.pdf"));
+        QVERIFY(!csvText.contains("blob:"));
+
+        // Extract to temp file & save via Save As dialog preserve exact bytes.
+        const QString tempPath = backend.extractBlobToTempFile(blobRef);
+        QVERIFY(!tempPath.isEmpty());
+        QFile tempFile(tempPath);
+        QVERIFY(tempFile.open(QIODevice::ReadOnly));
+        QCOMPARE(tempFile.readAll(), pdfBytes);
+
+        backend.saveBlobDialog(blobRef);
+        QVERIFY(QFile::exists(savedOutPath));
+        QFile savedFile(savedOutPath);
+        QVERIFY(savedFile.open(QIODevice::ReadOnly));
+        QCOMPARE(savedFile.readAll(), pdfBytes);
+
+        // Undo/redo preserves embedded file attachment.
+        QVERIFY(backend.deleteRecord(1));
+        QCOMPARE(backend.recordCount(), 0);
+        backend.undo();
+        QCOMPARE(backend.recordCount(), 1);
+        QCOMPARE(backend.recordValues(1).value(QString::number(fDoc)).toString(), blobRef);
+
+        // Importing a text file via URL works as well.
+        const QString noteRef = backend.importAttachmentUrl(QUrl::fromLocalFile(notePath));
+        QVERIFY(noteRef.startsWith("blob:"));
+        QCOMPARE(backend.blobInfo(noteRef).value("extension").toString(), QString("TXT"));
+    }
+
     void themeFallsBack() {
         QTemporaryDir dir;
         Theme theme(dir.path());
@@ -566,6 +670,32 @@ private slots:
         QCOMPARE(window->property("imagePreviewZoom").toDouble(), 2.0);
         QMetaObject::invokeMethod(window, "closeImagePreview");
         QCOMPARE(window->property("imagePreviewVisible").toBool(), false);
+
+        // Add a File attribute, attach a PDF, and verify grid chip + record form attachment box.
+        const int fManual = backend.addField("Manual", "File", "", false, false);
+        QVERIFY(fManual > 0);
+        const QString pdfFile = dir.filePath("manual.pdf");
+        write(pdfFile, "%PDF-1.4\n%%EOF\n");
+        const QString pdfRef = backend.importAttachmentFile(pdfFile);
+        QVERIFY(pdfRef.startsWith("blob:"));
+
+        QVariantMap rowWithFile = backend.recordValues(1);
+        rowWithFile.insert(QString::number(fManual), pdfRef);
+        QVERIFY(backend.saveRecord(1, rowWithFile) > 0);
+        QTest::qWait(80);
+
+        const int fileColIdx = backend.fieldCount() - 1;
+        auto *gridFileChip = findVisualItem(window->contentItem(), QString("gridFileChip_0_%1").arg(fileColIdx));
+        QVERIFY(gridFileChip != nullptr);
+        QVERIFY(gridFileChip->isVisible());
+
+        QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, 1));
+        QTest::qWait(60);
+        auto *recordFileField = findVisualItem(window->contentItem(), QString("recordFileField_%1").arg(fileColIdx));
+        QVERIFY(recordFileField != nullptr);
+        QVERIFY(recordFileField->isVisible());
+        QCOMPARE(recordFileField->height(), 84.0);
+        QMetaObject::invokeMethod(window, "closeRecordDialog");
     }
 
 private:

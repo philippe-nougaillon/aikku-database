@@ -126,6 +126,42 @@ PortalFileFilters imageFilters() {
     };
 }
 
+PortalFileFilter allFilesFilter() {
+    return {
+        QCoreApplication::translate("PortalFilePicker", "All files"),
+        {{0, QStringLiteral("*")}},
+    };
+}
+
+PortalFileFilter documentFilter() {
+    return {
+        QCoreApplication::translate("PortalFilePicker", "Documents"),
+        {
+            {1, QStringLiteral("application/pdf")},
+            {1, QStringLiteral("text/*")},
+            {0, QStringLiteral("*.pdf")},
+            {0, QStringLiteral("*.txt")},
+            {0, QStringLiteral("*.md")},
+            {0, QStringLiteral("*.doc")},
+            {0, QStringLiteral("*.docx")},
+            {0, QStringLiteral("*.odt")},
+            {0, QStringLiteral("*.ods")},
+            {0, QStringLiteral("*.xlsx")},
+            {0, QStringLiteral("*.rtf")},
+            {0, QStringLiteral("*.csv")},
+            {0, QStringLiteral("*.zip")},
+        },
+    };
+}
+
+PortalFileFilters attachmentFilters() {
+    return {
+        allFilesFilter(),
+        documentFilter(),
+        imageFilter(),
+    };
+}
+
 QString portalToken() {
     return QStringLiteral("aikku_%1").arg(QRandomGenerator::global()->generate());
 }
@@ -199,6 +235,32 @@ void PortalFilePicker::openImage() {
     options.insert(QStringLiteral("current_filter"), QVariant::fromValue(imageFilter()));
 
     requestFile(QStringLiteral("OpenFile"), tr("Choose Image"), options, Action::OpenImage);
+}
+
+void PortalFilePicker::openAttachment() {
+    QVariantMap options;
+    options.insert(QStringLiteral("accept_label"), tr("Attach"));
+    options.insert(QStringLiteral("modal"), true);
+    options.insert(QStringLiteral("multiple"), false);
+    options.insert(QStringLiteral("current_folder"), portalPathBytes(defaultFolder()));
+    options.insert(QStringLiteral("filters"), QVariant::fromValue(attachmentFilters()));
+    options.insert(QStringLiteral("current_filter"), QVariant::fromValue(allFilesFilter()));
+
+    requestFile(QStringLiteral("OpenFile"), tr("Attach File"), options, Action::OpenAttachment);
+}
+
+void PortalFilePicker::saveAttachment(const QUrl &suggestedUrl) {
+    const QFileInfo target(suggestedUrl.toLocalFile());
+
+    QVariantMap options;
+    options.insert(QStringLiteral("accept_label"), tr("Save"));
+    options.insert(QStringLiteral("modal"), true);
+    options.insert(QStringLiteral("current_folder"), portalPathBytes(target.absolutePath()));
+    options.insert(QStringLiteral("current_name"), target.fileName());
+    options.insert(QStringLiteral("filters"), QVariant::fromValue(attachmentFilters()));
+    options.insert(QStringLiteral("current_filter"), QVariant::fromValue(allFilesFilter()));
+
+    requestFile(QStringLiteral("SaveFile"), tr("Save Attached File"), options, Action::SaveAttachment);
 }
 
 bool PortalFilePicker::connectToRequestPath(const QString &path) {
@@ -303,6 +365,10 @@ void PortalFilePicker::handleResponse(uint response, const QVariantMap &results)
         emit databaseOpenSelected(url);
     } else if (action == Action::OpenImage) {
         emit imageOpenSelected(url);
+    } else if (action == Action::OpenAttachment) {
+        emit attachmentOpenSelected(url);
+    } else if (action == Action::SaveAttachment) {
+        emit attachmentSaveSelected(url);
     }
 }
 

@@ -4,6 +4,7 @@
 #include <QColor>
 #include <QDate>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -11,6 +12,7 @@
 #include <QFontMetrics>
 #include <QImageReader>
 #include <QLocale>
+#include <QMimeDatabase>
 #include <QMutexLocker>
 #include <QRegularExpression>
 #include <QSaveFile>
@@ -28,6 +30,14 @@ namespace {
 std::atomic<int> s_connectionCounter{0};
 
 constexpr int kMaxStoredImageDimension = 1600;
+constexpr qint64 kMaxStoredFileBytes = 25 * 1024 * 1024;
+
+QString blobExtensionBadge(const QString &filename) {
+    const QString ext = QFileInfo(filename).suffix().trimmed().toUpper();
+    if (ext.isEmpty())
+        return QStringLiteral("FILE");
+    return ext.left(5);
+}
 
 QString nowIso() {
     return QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
@@ -201,6 +211,22 @@ Backend::Backend(const QString &databasePath, FilePicker *filePicker, QObject *p
             const QString ref = importImageFile(url.toLocalFile());
             if (!ref.isEmpty())
                 emit imagePicked(fieldId, ref);
+        });
+        connect(m_filePicker, &FilePicker::attachmentOpenSelected, this, [this](const QUrl &url) {
+            const int fieldId = m_pendingFileFieldId;
+            m_pendingFileFieldId = 0;
+            if (fieldId <= 0)
+                return;
+            const QString ref = importAttachmentFile(url.toLocalFile());
+            if (!ref.isEmpty())
+                emit filePicked(fieldId, ref);
+        });
+        connect(m_filePicker, &FilePicker::attachmentSaveSelected, this, [this](const QUrl &url) {
+            const QString ref = m_pendingSaveBlobRef;
+            m_pendingSaveBlobRef.clear();
+            if (ref.isEmpty())
+                return;
+            saveBlobToFile(ref, url.toLocalFile());
         });
         connect(m_filePicker, &FilePicker::failed, this, &Backend::setError);
     }
@@ -543,33 +569,35 @@ void Backend::reloadFieldsAndRecords() {
         }
     }
 
-    // Load lightweight blob metadata (without binary data) if this table has any Image fields.
+    // Load lightweight blob metadata (without binary data) if this table has any Image or File fields.
     struct BlobMeta {
         QString filename;
         int width = 0;
         int height = 0;
+        qint64 sizeBytes = 0;
     };
     QHash<int, BlobMeta> blobMetaById;
-    bool hasImageField = false;
+    bool hasBlobField = false;
     for (const FieldRow &fr : std::as_const(fieldRows)) {
-        if (fr.datatype == QLatin1String("Image")) {
-            hasImageField = true;
+        if (fr.datatype == QLatin1String("Image") || fr.datatype == QLatin1String("File")) {
+            hasBlobField = true;
             break;
         }
     }
-    if (hasImageField) {
+    if (hasBlobField) {
         QSqlQuery bq(db);
-        if (bq.exec(QStringLiteral("SELECT id, filename, width, height FROM blobs"))) {
+        if (bq.exec(QStringLiteral("SELECT id, filename, width, height, LENGTH(data) FROM blobs"))) {
             while (bq.next()) {
                 BlobMeta meta;
                 meta.filename = bq.value(1).toString();
                 meta.width = bq.value(2).toInt();
                 meta.height = bq.value(3).toInt();
+                meta.sizeBytes = bq.value(4).toLongLong();
                 blobMetaById.insert(bq.value(0).toInt(), meta);
             }
         }
     }
-    auto imageDisplayName = [&](const QString &rawVal) -> QString {
+    auto blobDisplayName = [&](const QString &rawVal) -> QString {
         const int blobId = parseBlobId(rawVal);
         if (blobId > 0)
             return blobMetaById.value(blobId).filename;
@@ -585,8 +613,9 @@ void Backend::reloadFieldsAndRecords() {
         if (!needle.isEmpty()) {
             bool matchedSearch = false;
             for (const FieldRow &fr : std::as_const(fieldRows)) {
-                const QString cellText = (fr.datatype == QLatin1String("Image"))
-                                             ? imageDisplayName(bucket.valuesByField.value(fr.id))
+                const bool isBlob = (fr.datatype == QLatin1String("Image") || fr.datatype == QLatin1String("File"));
+                const QString cellText = isBlob
+                                             ? blobDisplayName(bucket.valuesByField.value(fr.id))
                                              : bucket.valuesByField.value(fr.id);
                 if (cellText.contains(needle, Qt::CaseInsensitive)) {
                     matchedSearch = true;
@@ -605,7 +634,7 @@ void Backend::reloadFieldsAndRecords() {
             const int fId = fit.key();
             const QString cellVal = bucket.valuesByField.value(fId);
 
-            // Check if field is Tags, Image, or standard.
+            // Check if field is Tags, Image, File, or standard.
             QString fType;
             for (const FieldRow &fr : std::as_const(fieldRows)) {
                 if (fr.id == fId) {
@@ -626,8 +655,8 @@ void Backend::reloadFieldsAndRecords() {
                     matchedFilters = false;
                     break;
                 }
-            } else if (fType == QLatin1String("Image")) {
-                if (imageDisplayName(cellVal) != filterVal) {
+            } else if (fType == QLatin1String("Image") || fType == QLatin1String("File")) {
+                if (blobDisplayName(cellVal) != filterVal) {
                     matchedFilters = false;
                     break;
                 }
@@ -694,9 +723,9 @@ void Backend::reloadFieldsAndRecords() {
                 cmp = (da < dbVal) ? -1 : (da > dbVal ? 1 : 0);
             else if (oka != okb)
                 cmp = oka ? 1 : -1;
-        } else if (sortDatatype == QLatin1String("Image")) {
-            const QString sa = imageDisplayName(ba.valuesByField.value(m_sortFieldId));
-            const QString sb = imageDisplayName(bb.valuesByField.value(m_sortFieldId));
+        } else if (sortDatatype == QLatin1String("Image") || sortDatatype == QLatin1String("File")) {
+            const QString sa = blobDisplayName(ba.valuesByField.value(m_sortFieldId));
+            const QString sb = blobDisplayName(bb.valuesByField.value(m_sortFieldId));
             cmp = QString::compare(sa, sb, Qt::CaseInsensitive);
         } else {
             const QString sa = ba.valuesByField.value(m_sortFieldId);
@@ -815,8 +844,8 @@ void Backend::reloadFieldsAndRecords() {
                     if (!tag.trimmed().isEmpty())
                         distinctSet.insert(tag.trimmed());
                 }
-            } else if (fr.datatype == QLatin1String("Image")) {
-                const QString fname = imageDisplayName(val);
+            } else if (fr.datatype == QLatin1String("Image") || fr.datatype == QLatin1String("File")) {
+                const QString fname = blobDisplayName(val);
                 if (!fname.isEmpty())
                     distinctSet.insert(fname);
             } else {
@@ -882,7 +911,11 @@ void Backend::reloadFieldsAndRecords() {
                 QString displayStr = raw;
                 double numVal = 0.0;
                 const bool isNum = parseDoubleFlexible(raw, &numVal);
-                if (fr.datatype == QLatin1String("Euros") && isNum) {
+                if (fr.datatype == QLatin1String("File")) {
+                    displayStr = blobDisplayName(raw);
+                    if (displayStr.isEmpty())
+                        continue;
+                } else if (fr.datatype == QLatin1String("Euros") && isNum) {
                     displayStr = QLocale().toString(numVal, 'f', 2) + QStringLiteral(" €");
                 } else if ((fr.datatype == QLatin1String("Number") || fr.datatype == QLatin1String("Formula")) && isNum) {
                     const int dec = raw.contains(QLatin1Char('.')) ? 2 : 0;
@@ -890,7 +923,9 @@ void Backend::reloadFieldsAndRecords() {
                 } else if (fr.datatype == QLatin1String("Stars")) {
                     displayStr = QStringLiteral("★★★★★");
                 }
-                const int pad = (fr.datatype == QLatin1String("Status") || fr.datatype == QLatin1String("YesNo")) ? 40 : 28;
+                const int pad = (fr.datatype == QLatin1String("File"))
+                                    ? 78
+                                    : ((fr.datatype == QLatin1String("Status") || fr.datatype == QLatin1String("YesNo")) ? 40 : 28);
                 contentWidth = std::max(contentWidth, cellFm.horizontalAdvance(displayStr) + pad);
             }
         }
@@ -949,10 +984,32 @@ void Backend::reloadFieldsAndRecords() {
             cell.insert(QStringLiteral("imageWidth"), imgWidth);
             cell.insert(QStringLiteral("imageHeight"), imgHeight);
 
+            QString fileName;
+            QString fileExt;
+            QString fileSizeLabel;
+            qint64 fileSizeBytes = 0;
+            if (fr.datatype == QLatin1String("File") && !raw.isEmpty()) {
+                const int blobId = parseBlobId(raw);
+                if (blobId > 0 && blobMetaById.contains(blobId)) {
+                    const BlobMeta &meta = blobMetaById[blobId];
+                    fileName = meta.filename;
+                    fileExt = blobExtensionBadge(meta.filename);
+                    fileSizeBytes = meta.sizeBytes;
+                    fileSizeLabel = formatByteSize(meta.sizeBytes);
+                }
+            }
+            cell.insert(QStringLiteral("fileName"), fileName);
+            cell.insert(QStringLiteral("fileExt"), fileExt);
+            cell.insert(QStringLiteral("fileSizeLabel"), fileSizeLabel);
+            cell.insert(QStringLiteral("fileSizeBytes"), fileSizeBytes);
+
             cells.append(cell);
 
-            if (!raw.isEmpty() && fr.datatype != QLatin1String("Image") && summaryParts.size() < 2)
-                summaryParts.append(raw);
+            if (!raw.isEmpty() && fr.datatype != QLatin1String("Image") && summaryParts.size() < 2) {
+                const QString summaryPart = (fr.datatype == QLatin1String("File")) ? fileName : raw;
+                if (!summaryPart.isEmpty())
+                    summaryParts.append(summaryPart);
+            }
         }
 
         QVariantMap rowMap;
@@ -2034,9 +2091,12 @@ bool Backend::exportCsvFile(const QString &filePath) {
         QStringList rowCells;
         for (const QVariant &cv : cells) {
             const QVariantMap cmap = cv.toMap();
+            const QString dt = cmap.value(QStringLiteral("datatype")).toString();
             QString val = cmap.value(QStringLiteral("rawValue")).toString();
-            if (cmap.value(QStringLiteral("datatype")).toString() == QLatin1String("Image"))
+            if (dt == QLatin1String("Image"))
                 val = cmap.value(QStringLiteral("imageName")).toString();
+            else if (dt == QLatin1String("File"))
+                val = cmap.value(QStringLiteral("fileName")).toString();
             rowCells.append(escapeCsvCell(val));
         }
         saveFile.write((rowCells.join(QLatin1Char(',')) + QLatin1Char('\n')).toUtf8());
@@ -2103,6 +2163,16 @@ QString Backend::imageUrl(const QString &rawValue) const {
     return QStringLiteral("image://aikku/%1/%2").arg(m_imageGeneration).arg(blobId);
 }
 
+QString Backend::formatByteSize(qint64 bytes) {
+    if (bytes < 0)
+        return {};
+    if (bytes < 1024)
+        return QStringLiteral("%1 B").arg(bytes);
+    if (bytes < 1024 * 1024)
+        return QStringLiteral("%1 KB").arg(QString::number(bytes / 1024.0, 'f', bytes < 10 * 1024 ? 1 : 0));
+    return QStringLiteral("%1 MB").arg(QString::number(bytes / (1024.0 * 1024.0), 'f', 1));
+}
+
 QVariantMap Backend::blobInfo(const QString &rawValue) const {
     const int blobId = parseBlobId(rawValue);
     if (blobId <= 0)
@@ -2113,17 +2183,23 @@ QVariantMap Backend::blobInfo(const QString &rawValue) const {
         return {};
 
     QSqlQuery q(db);
-    q.prepare(QStringLiteral("SELECT filename, mime_type, width, height FROM blobs WHERE id = ? LIMIT 1"));
+    q.prepare(QStringLiteral("SELECT filename, mime_type, width, height, LENGTH(data) FROM blobs WHERE id = ? LIMIT 1"));
     q.addBindValue(blobId);
     if (!q.exec() || !q.next())
         return {};
 
+    const QString filename = q.value(0).toString();
+    const qint64 sizeBytes = q.value(4).toLongLong();
+
     QVariantMap info;
     info.insert(QStringLiteral("id"), blobId);
-    info.insert(QStringLiteral("filename"), q.value(0).toString());
+    info.insert(QStringLiteral("filename"), filename);
     info.insert(QStringLiteral("mimeType"), q.value(1).toString());
     info.insert(QStringLiteral("width"), q.value(2).toInt());
     info.insert(QStringLiteral("height"), q.value(3).toInt());
+    info.insert(QStringLiteral("sizeBytes"), sizeBytes);
+    info.insert(QStringLiteral("sizeLabel"), formatByteSize(sizeBytes));
+    info.insert(QStringLiteral("extension"), blobExtensionBadge(filename));
     info.insert(QStringLiteral("url"), imageUrl(rawValue));
     return info;
 }
@@ -2196,6 +2272,172 @@ QString Backend::importImageUrl(const QUrl &url) {
         return {};
     const QString local = url.isLocalFile() ? url.toLocalFile() : url.toString();
     return importImageFile(local);
+}
+
+void Backend::pickFileDialog(int fieldId) {
+    if (!m_filePicker) {
+        setError(tr("No file picker is configured."));
+        return;
+    }
+    m_pendingFileFieldId = fieldId;
+    m_filePicker->openAttachment();
+}
+
+QString Backend::importAttachmentFile(const QString &filePath) {
+    clearMessages();
+    if (filePath.trimmed().isEmpty())
+        return {};
+
+    const QFileInfo fi(filePath);
+    if (!fi.exists() || !fi.isFile()) {
+        setError(tr("File not found: %1").arg(filePath));
+        return {};
+    }
+    if (fi.size() > kMaxStoredFileBytes) {
+        setError(tr("File \"%1\" exceeds the %2 limit.").arg(fi.fileName(), formatByteSize(kMaxStoredFileBytes)));
+        return {};
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        setError(tr("Could not read file: %1").arg(file.errorString()));
+        return {};
+    }
+    const QByteArray bytes = file.readAll();
+    file.close();
+
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+    if (!db.isOpen())
+        return {};
+
+    const QMimeDatabase mimeDb;
+    const QString mimeType = mimeDb.mimeTypeForFileNameAndData(fi.fileName(), bytes).name();
+    const QString filename = fi.fileName();
+
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral(
+        "INSERT INTO blobs (filename, mime_type, width, height, data, created_at) "
+        "VALUES (?, ?, 0, 0, ?, ?)"));
+    q.addBindValue(filename);
+    q.addBindValue(mimeType);
+    q.addBindValue(bytes);
+    q.addBindValue(nowIso());
+    if (!q.exec()) {
+        setError(tr("Could not store file in database: %1").arg(q.lastError().text()));
+        return {};
+    }
+
+    const int blobId = q.lastInsertId().toInt();
+    return QStringLiteral("blob:%1").arg(blobId);
+}
+
+QString Backend::importAttachmentUrl(const QUrl &url) {
+    if (!url.isValid())
+        return {};
+    const QString local = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    return importAttachmentFile(local);
+}
+
+QString Backend::extractBlobToTempFile(const QString &rawValue) {
+    clearMessages();
+    const int blobId = parseBlobId(rawValue);
+    if (blobId <= 0)
+        return {};
+
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+    if (!db.isOpen())
+        return {};
+
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("SELECT filename, data FROM blobs WHERE id = ? LIMIT 1"));
+    q.addBindValue(blobId);
+    if (!q.exec() || !q.next()) {
+        setError(tr("Attached file could not be found in the database."));
+        return {};
+    }
+
+    QString filename = QFileInfo(q.value(0).toString()).fileName().trimmed();
+    if (filename.isEmpty())
+        filename = QStringLiteral("attachment_%1").arg(blobId);
+    filename.replace(QLatin1Char('/'), QLatin1Char('_'));
+    filename.replace(QLatin1Char('\\'), QLatin1Char('_'));
+
+    const QByteArray bytes = q.value(1).toByteArray();
+
+    const QString baseCache = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    const QString targetDir = baseCache + QStringLiteral("/aikku-database-blobs/%1-%2").arg(m_imageGeneration).arg(blobId);
+    QDir().mkpath(targetDir);
+
+    const QString targetPath = targetDir + QLatin1Char('/') + filename;
+    QSaveFile sf(targetPath);
+    if (!sf.open(QIODevice::WriteOnly) || sf.write(bytes) != bytes.size() || !sf.commit()) {
+        setError(tr("Could not extract attached file: %1").arg(sf.errorString()));
+        return {};
+    }
+    return targetPath;
+}
+
+bool Backend::openBlobAttachment(const QString &rawValue) {
+    const QString tempPath = extractBlobToTempFile(rawValue);
+    if (tempPath.isEmpty())
+        return false;
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(tempPath))) {
+        setError(tr("Could not open file \"%1\".").arg(QFileInfo(tempPath).fileName()));
+        return false;
+    }
+    return true;
+}
+
+bool Backend::saveBlobToFile(const QString &rawValue, const QString &destPath) {
+    clearMessages();
+    const int blobId = parseBlobId(rawValue);
+    if (blobId <= 0 || destPath.trimmed().isEmpty())
+        return false;
+
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+    if (!db.isOpen())
+        return false;
+
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("SELECT data FROM blobs WHERE id = ? LIMIT 1"));
+    q.addBindValue(blobId);
+    if (!q.exec() || !q.next()) {
+        setError(tr("Attached file could not be found in the database."));
+        return false;
+    }
+
+    const QByteArray bytes = q.value(0).toByteArray();
+    QSaveFile sf(destPath);
+    if (!sf.open(QIODevice::WriteOnly) || sf.write(bytes) != bytes.size() || !sf.commit()) {
+        setError(tr("Could not save file: %1").arg(sf.errorString()));
+        return false;
+    }
+
+    setNotice(tr("Saved \"%1\".").arg(QFileInfo(destPath).fileName()));
+    return true;
+}
+
+void Backend::saveBlobDialog(const QString &rawValue) {
+    if (!m_filePicker) {
+        setError(tr("No file picker is configured."));
+        return;
+    }
+    const QVariantMap info = blobInfo(rawValue);
+    if (info.isEmpty()) {
+        setError(tr("Attached file could not be found in the database."));
+        return;
+    }
+
+    QString filename = QFileInfo(info.value(QStringLiteral("filename")).toString()).fileName().trimmed();
+    if (filename.isEmpty())
+        filename = QStringLiteral("attachment_%1").arg(info.value(QStringLiteral("id")).toInt());
+
+    const QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    const QString folder = QDir(docs).exists() ? docs : QDir::homePath();
+    const QString suggested = folder + QLatin1Char('/') + filename;
+
+    m_pendingSaveBlobRef = rawValue;
+    m_filePicker->saveAttachment(QUrl::fromLocalFile(suggested));
 }
 
 QImage Backend::loadBlobImage(int blobId) const {

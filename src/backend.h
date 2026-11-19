@@ -128,15 +128,23 @@ public:
     Q_INVOKABLE void exportCsvDialog();
     Q_INVOKABLE bool handleDroppedUrls(const QList<QUrl> &urls);
 
-    // Embedded image blobs
+    // Embedded image & file blobs
     Q_INVOKABLE void pickImageDialog(int fieldId);
     Q_INVOKABLE QString importImageFile(const QString &filePath);
     Q_INVOKABLE QString importImageUrl(const QUrl &url);
+    Q_INVOKABLE void pickFileDialog(int fieldId);
+    Q_INVOKABLE QString importAttachmentFile(const QString &filePath);
+    Q_INVOKABLE QString importAttachmentUrl(const QUrl &url);
+    Q_INVOKABLE QString extractBlobToTempFile(const QString &rawValue);
+    Q_INVOKABLE bool openBlobAttachment(const QString &rawValue);
+    Q_INVOKABLE bool saveBlobToFile(const QString &rawValue, const QString &destPath);
+    Q_INVOKABLE void saveBlobDialog(const QString &rawValue);
     Q_INVOKABLE QString imageUrl(const QString &rawValue) const;
     Q_INVOKABLE QVariantMap blobInfo(const QString &rawValue) const;
     QImage loadBlobImage(int blobId) const;
     static QImage loadBlobImageFromFile(const QString &dbPath, int blobId);
     static int parseBlobId(const QString &rawValue);
+    static QString formatByteSize(qint64 bytes);
 
     // Undo and redo
     Q_INVOKABLE void undo();
@@ -163,6 +171,7 @@ signals:
     void undoStackChanged();
     void statusChanged();
     void imagePicked(int fieldId, const QString &blobRef);
+    void filePicked(int fieldId, const QString &blobRef);
 
 private:
     struct TableRow {
@@ -222,6 +231,8 @@ private:
     FilePicker *m_filePicker = nullptr;
     int m_pendingImportTableId = 0;
     int m_pendingImageFieldId = 0;
+    int m_pendingFileFieldId = 0;
+    QString m_pendingSaveBlobRef;
 
     QVariantList m_tables;
     int m_currentTableId = 0;

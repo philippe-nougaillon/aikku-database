@@ -79,7 +79,8 @@ ApplicationWindow {
         { code: "Stars", label: qsTr("Stars") },
         { code: "URL", label: qsTr("URL") },
         { code: "Email", label: qsTr("Email") },
-        { code: "Image", label: qsTr("Image") }
+        { code: "Image", label: qsTr("Image") },
+        { code: "File", label: qsTr("File") }
     ]
 
     readonly property string relationTargetTable: {
@@ -154,6 +155,19 @@ ApplicationWindow {
         for (var i = 1; i <= 5; ++i)
             out += (i <= n) ? "★" : "☆"
         return out
+    }
+
+    function fileBadgeColor(ext) {
+        var e = String(ext || "").toUpperCase()
+        if (e === "PDF")
+            return "#b91c1c"
+        if (e === "DOC" || e === "DOCX" || e === "ODT" || e === "RTF")
+            return "#2563eb"
+        if (e === "XLS" || e === "XLSX" || e === "ODS" || e === "CSV")
+            return "#15803d"
+        if (e === "ZIP" || e === "TAR" || e === "GZ" || e === "7Z" || e === "RAR")
+            return "#b45309"
+        return "#3f3f4a"
     }
 
     function formatCellDisplay(datatype, rawValue, isNumeric, numericValue) {
@@ -365,6 +379,10 @@ ApplicationWindow {
     Connections {
         target: backend
         function onImagePicked(fieldId, blobRef) {
+            if (win.recordDialogVisible && blobRef !== "")
+                win.setRecordFieldValue(fieldId, blobRef)
+        }
+        function onFilePicked(fieldId, blobRef) {
             if (win.recordDialogVisible && blobRef !== "")
                 win.setRecordFieldValue(fieldId, blobRef)
         }
@@ -1673,10 +1691,76 @@ ApplicationWindow {
                                                             }
                                                         }
 
+                                                        // File Attachment Chip (click to open)
+                                                        Rectangle {
+                                                            objectName: "gridFileChip_" + rowDelegate.rowIdx + "_" + index
+                                                            visible: modelData.datatype === "File" && modelData.fileName !== ""
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            anchors.left: parent.left
+                                                            anchors.leftMargin: 10
+                                                            height: 26
+                                                            width: Math.min(parent.width - 20, fileChipRow.implicitWidth + 14)
+                                                            radius: Math.min(4, theme.radius)
+                                                            color: fileChipHover.hovered ? "#24242f" : "#18181f"
+                                                            border.width: 1
+                                                            border.color: fileChipHover.hovered ? theme.accent : "#32323d"
+
+                                                            RowLayout {
+                                                                id: fileChipRow
+                                                                anchors.fill: parent
+                                                                anchors.leftMargin: 5
+                                                                anchors.rightMargin: 8
+                                                                spacing: 6
+
+                                                                Rectangle {
+                                                                    implicitWidth: fileExtLbl.implicitWidth + 10
+                                                                    implicitHeight: 18
+                                                                    width: fileExtLbl.implicitWidth + 10
+                                                                    height: 18
+                                                                    radius: Math.min(3, theme.radius)
+                                                                    color: win.fileBadgeColor(modelData.fileExt)
+
+                                                                    Label {
+                                                                        id: fileExtLbl
+                                                                        anchors.centerIn: parent
+                                                                        text: modelData.fileExt || "FILE"
+                                                                        color: "white"
+                                                                        font.pixelSize: 9
+                                                                        font.weight: Font.Bold
+                                                                        font.family: "monospace"
+                                                                    }
+                                                                }
+
+                                                                Label {
+                                                                    Layout.fillWidth: true
+                                                                    text: modelData.fileName
+                                                                    color: fileChipHover.hovered ? "white" : "#dcdce4"
+                                                                    font.pixelSize: 12
+                                                                    elide: Text.ElideMiddle
+                                                                }
+                                                            }
+
+                                                            HoverHandler {
+                                                                id: fileChipHover
+                                                                cursorShape: Qt.PointingHandCursor
+                                                            }
+
+                                                            MouseArea {
+                                                                anchors.fill: parent
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onClicked: (mouse) => {
+                                                                    mouse.accepted = true
+                                                                    backend.selectedRowIndex = rowDelegate.rowIdx
+                                                                    backend.openBlobAttachment(modelData.rawValue)
+                                                                }
+                                                            }
+                                                        }
+
                                                         // Standard / Numeric / Stars / Euros Text Cell
                                                         Label {
                                                             visible: modelData.datatype !== "Status" && modelData.datatype !== "YesNo"
                                                                 && (modelData.datatype !== "Image" || modelData.imageUrl === "")
+                                                                && (modelData.datatype !== "File" || modelData.fileName === "")
                                                             anchors.fill: parent
                                                             anchors.leftMargin: 10
                                                             anchors.rightMargin: 10
@@ -1690,7 +1774,7 @@ ApplicationWindow {
                                                             font.pixelSize: 13
                                                             font.weight: modelData.datatype === "Formula" ? Font.DemiBold : Font.Normal
                                                             elide: Text.ElideRight
-                                                            text: modelData.datatype === "Image" ? "—"
+                                                            text: (modelData.datatype === "Image" || modelData.datatype === "File") ? "—"
                                                                 : win.formatCellDisplay(modelData.datatype, modelData.rawValue, modelData.isNumeric, modelData.numericValue)
                                                         }
                                                     }
@@ -2975,13 +3059,201 @@ ApplicationWindow {
                                         }
                                     }
 
+                                    // File Attachment Picker & Actions
+                                    Rectangle {
+                                        id: fileFieldBox
+                                        objectName: "recordFileField_" + fieldDelegate.index
+                                        visible: fieldDelegate.modelData.datatype === "File"
+                                        Layout.fillWidth: true
+                                        implicitHeight: 84
+                                        Layout.preferredHeight: 84
+                                        radius: Math.min(4, theme.radius)
+                                        color: fileFieldDropArea.containsDrag ? "#1c202c" : "#141419"
+                                        border.width: fileFieldDropArea.containsDrag ? 2 : 1
+                                        border.color: fileFieldDropArea.containsDrag ? theme.accent : "#2e2e36"
+
+                                        readonly property var info: visible && fieldDelegate.currentValue !== ""
+                                            ? backend.blobInfo(fieldDelegate.currentValue)
+                                            : ({})
+                                        readonly property bool hasFile: Boolean(info.id && info.id > 0)
+                                        readonly property string fileName: info.filename ? String(info.filename) : ""
+                                        readonly property string fileExt: info.extension ? String(info.extension) : "FILE"
+                                        readonly property string fileSizeLabel: info.sizeLabel ? String(info.sizeLabel) : ""
+
+                                        DropArea {
+                                            id: fileFieldDropArea
+                                            anchors.fill: parent
+                                            enabled: fileFieldBox.visible
+                                            onEntered: (drag) => {
+                                                drag.accepted = drag.hasUrls && drag.urls.length > 0
+                                            }
+                                            onDropped: (drop) => {
+                                                if (drop.hasUrls && drop.urls.length > 0) {
+                                                    var ref = backend.importAttachmentUrl(drop.urls[0])
+                                                    if (ref !== "") {
+                                                        win.setRecordFieldValue(fieldDelegate.fieldId, ref)
+                                                        drop.accept(Qt.CopyAction)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 10
+                                            spacing: 12
+
+                                            // 56x56 Extension Badge Box (click to open or pick)
+                                            Rectangle {
+                                                Layout.preferredWidth: 56
+                                                Layout.preferredHeight: 56
+                                                implicitWidth: 56
+                                                implicitHeight: 56
+                                                radius: Math.min(4, theme.radius)
+                                                color: fileFieldBox.hasFile ? win.fileBadgeColor(fileFieldBox.fileExt) : "#101014"
+                                                border.width: 1
+                                                border.color: formFileBadgeHover.hovered ? theme.accent : "#34343e"
+
+                                                Label {
+                                                    anchors.centerIn: parent
+                                                    text: fileFieldBox.hasFile ? fileFieldBox.fileExt : qsTr("None")
+                                                    color: fileFieldBox.hasFile ? "white" : "#62626c"
+                                                    font.pixelSize: fileFieldBox.hasFile ? 12 : 11
+                                                    font.weight: fileFieldBox.hasFile ? Font.Bold : Font.Normal
+                                                    font.family: fileFieldBox.hasFile ? "monospace" : ""
+                                                }
+
+                                                HoverHandler {
+                                                    id: formFileBadgeHover
+                                                    cursorShape: Qt.PointingHandCursor
+                                                }
+                                                TapHandler {
+                                                    onTapped: {
+                                                        if (fileFieldBox.hasFile)
+                                                            backend.openBlobAttachment(fieldDelegate.currentValue)
+                                                        else
+                                                            backend.pickFileDialog(fieldDelegate.fieldId)
+                                                    }
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 6
+
+                                                Label {
+                                                    Layout.fillWidth: true
+                                                    elide: Text.ElideMiddle
+                                                    text: fileFieldBox.hasFile
+                                                        ? (fileFieldBox.fileName !== "" ? fileFieldBox.fileName : qsTr("Attached file"))
+                                                          + (fileFieldBox.fileSizeLabel !== "" ? (" · " + fileFieldBox.fileSizeLabel) : "")
+                                                        : qsTr("Drop any file here or choose a file")
+                                                    color: fileFieldBox.hasFile ? "#dcdce4" : "#7a7a84"
+                                                    font.pixelSize: 12
+                                                }
+
+                                                RowLayout {
+                                                    spacing: 8
+
+                                                    Rectangle {
+                                                        objectName: "recordFilePickBtn_" + fieldDelegate.index
+                                                        implicitHeight: 28
+                                                        implicitWidth: pickFileLbl.implicitWidth + 18
+                                                        height: 28
+                                                        width: pickFileLbl.implicitWidth + 18
+                                                        radius: Math.min(4, theme.radius)
+                                                        color: pickFileHover.hovered ? "#2c2c36" : "#202028"
+                                                        border.width: 1
+                                                        border.color: pickFileHover.hovered ? theme.accent : "#383844"
+
+                                                        Label {
+                                                            id: pickFileLbl
+                                                            anchors.centerIn: parent
+                                                            text: fileFieldBox.hasFile ? qsTr("Replace…") : qsTr("Choose file…")
+                                                            color: "#e8e8ee"
+                                                            font.pixelSize: 12
+                                                        }
+                                                        HoverHandler { id: pickFileHover; cursorShape: Qt.PointingHandCursor }
+                                                        TapHandler { onTapped: backend.pickFileDialog(fieldDelegate.fieldId) }
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: fileFieldBox.hasFile
+                                                        implicitHeight: 28
+                                                        implicitWidth: openFileLbl.implicitWidth + 18
+                                                        height: 28
+                                                        width: openFileLbl.implicitWidth + 18
+                                                        radius: Math.min(4, theme.radius)
+                                                        color: openFileHover.hovered ? "#2c2c36" : "#1c1c22"
+                                                        border.width: 1
+                                                        border.color: "#32323c"
+
+                                                        Label {
+                                                            id: openFileLbl
+                                                            anchors.centerIn: parent
+                                                            text: qsTr("Open")
+                                                            color: "#d4d4dc"
+                                                            font.pixelSize: 12
+                                                        }
+                                                        HoverHandler { id: openFileHover; cursorShape: Qt.PointingHandCursor }
+                                                        TapHandler { onTapped: backend.openBlobAttachment(fieldDelegate.currentValue) }
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: fileFieldBox.hasFile
+                                                        implicitHeight: 28
+                                                        implicitWidth: saveFileLbl.implicitWidth + 18
+                                                        height: 28
+                                                        width: saveFileLbl.implicitWidth + 18
+                                                        radius: Math.min(4, theme.radius)
+                                                        color: saveFileHover.hovered ? "#2c2c36" : "#1c1c22"
+                                                        border.width: 1
+                                                        border.color: "#32323c"
+
+                                                        Label {
+                                                            id: saveFileLbl
+                                                            anchors.centerIn: parent
+                                                            text: qsTr("Save as…")
+                                                            color: "#d4d4dc"
+                                                            font.pixelSize: 12
+                                                        }
+                                                        HoverHandler { id: saveFileHover; cursorShape: Qt.PointingHandCursor }
+                                                        TapHandler { onTapped: backend.saveBlobDialog(fieldDelegate.currentValue) }
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: fileFieldBox.hasFile
+                                                        implicitHeight: 28
+                                                        implicitWidth: clrFileLbl.implicitWidth + 16
+                                                        height: 28
+                                                        width: clrFileLbl.implicitWidth + 16
+                                                        radius: Math.min(4, theme.radius)
+                                                        color: clrFileHover.hovered ? "#3f181c" : "#1c1c22"
+                                                        border.width: 1
+                                                        border.color: clrFileHover.hovered ? "#dc2626" : "#32323c"
+
+                                                        Label {
+                                                            id: clrFileLbl
+                                                            anchors.centerIn: parent
+                                                            text: qsTr("Clear")
+                                                            color: clrFileHover.hovered ? "#fca5a5" : "#a0a0aa"
+                                                            font.pixelSize: 12
+                                                        }
+                                                        HoverHandler { id: clrFileHover; cursorShape: Qt.PointingHandCursor }
+                                                        TapHandler { onTapped: win.setRecordFieldValue(fieldDelegate.fieldId, "") }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     // Standard Text / Number / Euros / Date / Tags / URL / Email Input
                                     Rectangle {
                                         id: textInputBox
                                         visible: fieldDelegate.modelData.datatype !== "YesNo" && fieldDelegate.modelData.datatype !== "List"
                                             && fieldDelegate.modelData.datatype !== "Status" && fieldDelegate.modelData.datatype !== "Relation"
                                             && fieldDelegate.modelData.datatype !== "Stars" && fieldDelegate.modelData.datatype !== "Formula"
-                                            && fieldDelegate.modelData.datatype !== "Image"
+                                            && fieldDelegate.modelData.datatype !== "Image" && fieldDelegate.modelData.datatype !== "File"
                                         Layout.fillWidth: true
                                         height: 36
                                         radius: Math.min(4, theme.radius)

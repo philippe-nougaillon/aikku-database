@@ -17,11 +17,15 @@ public:
     virtual void exportCsv(const QUrl &suggestedUrl) = 0;
     virtual void openDatabase() = 0;
     virtual void openImage() = 0;
+    virtual void openAttachment() = 0;
+    virtual void saveAttachment(const QUrl &suggestedUrl) = 0;
 
 signals:
     void csvOpenSelected(const QUrl &url);
     void csvExportSelected(const QUrl &url);
     void databaseOpenSelected(const QUrl &url);
     void imageOpenSelected(const QUrl &url);
+    void attachmentOpenSelected(const QUrl &url);
+    void attachmentSaveSelected(const QUrl &url);
     void failed(const QString &message);
 };
