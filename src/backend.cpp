@@ -1265,7 +1265,10 @@ int Backend::createSampleTable() {
     const int fTotal = insertField(QStringLiteral("Total"), QStringLiteral("Formula"), QStringLiteral("[Qty] * [Price]"), false, false, QStringLiteral("Sum"), 7, QStringLiteral("Computed value"));
     const int fRating = insertField(QStringLiteral("Rating"), QStringLiteral("Stars"), {}, false, false, {}, 8, QStringLiteral("Condition rating 1-5"));
 
+    QHash<QString, QString> insertedBlobs;
     auto insertSampleBlob = [&](const QString &filename) -> QString {
+        if (insertedBlobs.contains(filename))
+            return insertedBlobs.value(filename);
         QFile res(QStringLiteral(":/samples/") + filename);
         if (!res.open(QIODevice::ReadOnly))
             return {};
@@ -1284,7 +1287,9 @@ int Backend::createSampleTable() {
         bq.addBindValue(ts);
         if (!bq.exec())
             return {};
-        return QStringLiteral("blob:%1").arg(bq.lastInsertId().toInt());
+        const QString ref = QStringLiteral("blob:%1").arg(bq.lastInsertId().toInt());
+        insertedBlobs.insert(filename, ref);
+        return ref;
     };
 
     struct SampleRow {
@@ -1292,17 +1297,36 @@ int Backend::createSampleTable() {
         QString item;
         QString cat;
         QString status;
-        QString qty;
-        QString price;
-        QString total;
-        QString rating;
+        int qty;
+        int price;
+        int rating;
     };
     const QList<SampleRow> rows = {
-        {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad X1"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("6"), QStringLiteral("1450"), QStringLiteral("8700"), QStringLiteral("5")},
-        {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q1"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("12"), QStringLiteral("195"), QStringLiteral("2340"), QStringLiteral("5")},
-        {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure MV7 Mic"), QStringLiteral("Audio"), QStringLiteral("Low Stock"), QStringLiteral("2"), QStringLiteral("260"), QStringLiteral("520"), QStringLiteral("4")},
-        {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U7 AP"), QStringLiteral("Network"), QStringLiteral("Ordered"), QStringLiteral("4"), QStringLiteral("189"), QStringLiteral("756"), QStringLiteral("5")},
-        {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 27\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("8"), QStringLiteral("540"), QStringLiteral("4320"), QStringLiteral("4")},
+        {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad X1"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 6, 1450, 5},
+        {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q1"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 12, 195, 5},
+        {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure MV7 Mic"), QStringLiteral("Audio"), QStringLiteral("Low Stock"), 2, 260, 4},
+        {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U7 AP"), QStringLiteral("Network"), QStringLiteral("Ordered"), 4, 189, 5},
+        {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 27\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 8, 540, 4},
+        {QStringLiteral("macbook-pro-14.jpg"), QStringLiteral("MacBook Pro 14\""), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 4, 2199, 5},
+        {QStringLiteral("framework-13.jpg"), QStringLiteral("Framework 13"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 5, 1190, 5},
+        {QStringLiteral("mac-studio.jpg"), QStringLiteral("Mac Studio M2"), QStringLiteral("Hardware"), QStringLiteral("Low Stock"), 2, 2299, 5},
+        {QStringLiteral("synology-ds923.jpg"), QStringLiteral("Synology DS923+"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 3, 650, 5},
+        {QStringLiteral("raspberry-pi-5.jpg"), QStringLiteral("Raspberry Pi 5"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 15, 85, 4},
+        {QStringLiteral("mx-master-3s.jpg"), QStringLiteral("Logitech MX Master 3S"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 14, 99, 5},
+        {QStringLiteral("lg-34-ultrawide.jpg"), QStringLiteral("LG 34\" Ultrawide"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), 2, 780, 4},
+        {QStringLiteral("caldigit-ts4.jpg"), QStringLiteral("CalDigit TS4 Dock"), QStringLiteral("Peripherals"), QStringLiteral("Ordered"), 5, 399, 5},
+        {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad T14s"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 7, 1290, 4},
+        {QStringLiteral("macbook-pro-14.jpg"), QStringLiteral("MacBook Pro 16\""), QStringLiteral("Hardware"), QStringLiteral("Ordered"), 3, 2799, 5},
+        {QStringLiteral("framework-13.jpg"), QStringLiteral("Framework 16"), QStringLiteral("Hardware"), QStringLiteral("Ordered"), 2, 1699, 5},
+        {QStringLiteral("mac-studio.jpg"), QStringLiteral("Mac mini M4"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 6, 699, 5},
+        {QStringLiteral("synology-ds923.jpg"), QStringLiteral("Synology DS423+"), QStringLiteral("Network"), QStringLiteral("In Stock"), 2, 520, 4},
+        {QStringLiteral("raspberry-pi-5.jpg"), QStringLiteral("Raspberry Pi 4B"), QStringLiteral("Hardware"), QStringLiteral("Retired"), 9, 65, 3},
+        {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q2 Pro"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), 3, 209, 5},
+        {QStringLiteral("mx-master-3s.jpg"), QStringLiteral("Logitech MX Anywhere 3S"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 10, 79, 4},
+        {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 32\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), 3, 890, 5},
+        {QStringLiteral("lg-34-ultrawide.jpg"), QStringLiteral("LG 38\" Ultrawide"), QStringLiteral("Peripherals"), QStringLiteral("Ordered"), 2, 1190, 5},
+        {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure SM7B Mic"), QStringLiteral("Audio"), QStringLiteral("In Stock"), 3, 399, 5},
+        {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U6 Pro AP"), QStringLiteral("Network"), QStringLiteral("Retired"), 5, 159, 4},
     };
 
     QSqlQuery vq(db);
@@ -1315,8 +1339,14 @@ int Backend::createSampleTable() {
         const SampleRow &r = rows.at(i);
         const QString photoRef = insertSampleBlob(r.photoFile);
         const QList<QPair<int, QString>> pairs = {
-            {fPhoto, photoRef}, {fItem, r.item}, {fCat, r.cat}, {fStatus, r.status},
-            {fQty, r.qty}, {fPrice, r.price}, {fTotal, r.total}, {fRating, r.rating}
+            {fPhoto, photoRef},
+            {fItem, r.item},
+            {fCat, r.cat},
+            {fStatus, r.status},
+            {fQty, QString::number(r.qty)},
+            {fPrice, QString::number(r.price)},
+            {fTotal, QString::number(r.qty * r.price)},
+            {fRating, QString::number(r.rating)}
         };
         for (const auto &p : pairs) {
             vq.bindValue(0, p.first);

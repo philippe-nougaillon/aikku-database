@@ -12,5 +12,13 @@
         <file alias="samples/shure-mv7.jpg">samples/shure-mv7.jpg</file>
         <file alias="samples/ubiquiti-u7-ap.jpg">samples/ubiquiti-u7-ap.jpg</file>
         <file alias="samples/dell-27-4k.jpg">samples/dell-27-4k.jpg</file>
+        <file alias="samples/macbook-pro-14.jpg">samples/macbook-pro-14.jpg</file>
+        <file alias="samples/framework-13.jpg">samples/framework-13.jpg</file>
+        <file alias="samples/mac-studio.jpg">samples/mac-studio.jpg</file>
+        <file alias="samples/synology-ds923.jpg">samples/synology-ds923.jpg</file>
+        <file alias="samples/raspberry-pi-5.jpg">samples/raspberry-pi-5.jpg</file>
+        <file alias="samples/mx-master-3s.jpg">samples/mx-master-3s.jpg</file>
+        <file alias="samples/lg-34-ultrawide.jpg">samples/lg-34-ultrawide.jpg</file>
+        <file alias="samples/caldigit-ts4.jpg">samples/caldigit-ts4.jpg</file>
     </qresource>
 </RCC>

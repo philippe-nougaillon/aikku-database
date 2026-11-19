@@ -537,6 +537,7 @@ private slots:
 
         // Verify the sample table's built-in product photos are embedded and rendered in column 0.
         QCOMPARE(backend.fieldCount(), 8);
+        QCOMPARE(backend.recordCount(), 25);
         QCOMPARE(backend.fields().first().toMap().value("datatype").toString(), QString("Image"));
         auto *sampleThumb = findVisualItem(window->contentItem(), "gridImageThumb_0_0");
         QVERIFY(sampleThumb != nullptr);
@@ -569,7 +570,7 @@ private slots:
         QMetaObject::invokeMethod(window, "submitRecordDialog", Q_ARG(QVariant, false));
         QTest::qWait(50);
         QCOMPARE(window->property("recordDialogVisible").toBool(), false);
-        QCOMPARE(backend.recordCount(), 6);
+        QCOMPARE(backend.recordCount(), 26);
 
         // Verify that columns automatically expand to fit long field values and enable horizontal scrolling.
         const int fEmail = backend.addField("Email", "Email", "", false, false);
@@ -632,9 +633,10 @@ private slots:
         const QString blobRef = backend.importImageFile(imgFile);
         QVERIFY(blobRef.startsWith("blob:"));
 
-        QVariantMap rowWithImg = backend.recordValues(1);
+        const int topRecIdx = backend.records().first().toMap().value("recordIndex").toInt();
+        QVariantMap rowWithImg = backend.recordValues(topRecIdx);
         rowWithImg.insert(QString::number(fPhoto), blobRef);
-        QVERIFY(backend.saveRecord(1, rowWithImg) > 0);
+        QVERIFY(backend.saveRecord(topRecIdx, rowWithImg) > 0);
         QTest::qWait(80);
 
         // Verify the image thumbnail is visible in the records grid.
@@ -646,7 +648,7 @@ private slots:
         QCOMPARE(gridThumb->height(), 40.0);
 
         // Verify the record form renders the Image field picker box properly.
-        QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, 1));
+        QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, topRecIdx));
         QTest::qWait(60);
         auto *recordImgField = findVisualItem(window->contentItem(), QString("recordImageField_%1").arg(photoColIdx));
         QVERIFY(recordImgField != nullptr);
@@ -696,9 +698,9 @@ private slots:
         const QString pdfRef = backend.importAttachmentFile(pdfFile);
         QVERIFY(pdfRef.startsWith("blob:"));
 
-        QVariantMap rowWithFile = backend.recordValues(1);
+        QVariantMap rowWithFile = backend.recordValues(topRecIdx);
         rowWithFile.insert(QString::number(fManual), pdfRef);
-        QVERIFY(backend.saveRecord(1, rowWithFile) > 0);
+        QVERIFY(backend.saveRecord(topRecIdx, rowWithFile) > 0);
         QTest::qWait(80);
 
         const int fileColIdx = backend.fieldCount() - 1;
@@ -706,7 +708,7 @@ private slots:
         QVERIFY(gridFileChip != nullptr);
         QVERIFY(gridFileChip->isVisible());
 
-        QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, 1));
+        QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, topRecIdx));
         QTest::qWait(60);
         auto *recordFileField = findVisualItem(window->contentItem(), QString("recordFileField_%1").arg(fileColIdx));
         QVERIFY(recordFileField != nullptr);
