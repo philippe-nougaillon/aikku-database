@@ -535,6 +535,13 @@ private slots:
         QCOMPARE(grab.width(), 1120);
         QCOMPARE(grab.height(), 720);
 
+        // Verify the sample table's built-in product photos are embedded and rendered in column 0.
+        QCOMPARE(backend.fieldCount(), 8);
+        QCOMPARE(backend.fields().first().toMap().value("datatype").toString(), QString("Image"));
+        auto *sampleThumb = findVisualItem(window->contentItem(), "gridImageThumb_0_0");
+        QVERIFY(sampleThumb != nullptr);
+        QVERIFY(sampleThumb->isVisible());
+
         // Open Add Record dialog via Space / openRecordDialog(0) and verify form fields are visible and interactive.
         QMetaObject::invokeMethod(window, "openRecordDialog", Q_ARG(QVariant, 0));
         QTest::qWait(80);
@@ -546,17 +553,17 @@ private slots:
         QVERIFY(panel->height() > 300);
         QVERIFY(fieldsCol->height() > 200);
 
-        auto *input0 = findVisualItem(fieldsCol, "recordFieldInput_0");
-        auto *input3 = findVisualItem(fieldsCol, "recordFieldInput_3");
+        auto *input1 = findVisualItem(fieldsCol, "recordFieldInput_1");
         auto *input4 = findVisualItem(fieldsCol, "recordFieldInput_4");
-        QVERIFY(input0 != nullptr && input3 != nullptr && input4 != nullptr);
-        QVERIFY(input0->width() > 200);
-        QVERIFY(input0->isVisible());
+        auto *input5 = findVisualItem(fieldsCol, "recordFieldInput_5");
+        QVERIFY(input1 != nullptr && input4 != nullptr && input5 != nullptr);
+        QVERIFY(input1->width() > 200);
+        QVERIFY(input1->isVisible());
 
         // Enter values into the form inputs and submit.
-        input0->setProperty("text", "Framework Laptop 13");
-        input3->setProperty("text", "3");
-        input4->setProperty("text", "1100");
+        input1->setProperty("text", "Framework Laptop 13");
+        input4->setProperty("text", "3");
+        input5->setProperty("text", "1100");
         QTest::qWait(40);
 
         QMetaObject::invokeMethod(window, "submitRecordDialog", Q_ARG(QVariant, false));

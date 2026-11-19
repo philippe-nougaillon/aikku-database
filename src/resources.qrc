@@ -7,5 +7,10 @@
         <file alias="i18n/en.json">i18n/en.json</file>
         <file alias="i18n/da.json">i18n/da.json</file>
         <file alias="i18n/fr.json">i18n/fr.json</file>
+        <file alias="samples/thinkpad-x1.jpg">samples/thinkpad-x1.jpg</file>
+        <file alias="samples/keychron-q1.jpg">samples/keychron-q1.jpg</file>
+        <file alias="samples/shure-mv7.jpg">samples/shure-mv7.jpg</file>
+        <file alias="samples/ubiquiti-u7-ap.jpg">samples/ubiquiti-u7-ap.jpg</file>
+        <file alias="samples/dell-27-4k.jpg">samples/dell-27-4k.jpg</file>
     </qresource>
 </RCC>

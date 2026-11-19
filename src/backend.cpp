@@ -1251,15 +1251,39 @@ int Backend::createSampleTable() {
         return fq.lastInsertId().toInt();
     };
 
-    const int fItem = insertField(QStringLiteral("Item"), QStringLiteral("Text"), {}, true, false, {}, 1, QStringLiteral("Equipment name"));
-    const int fCat = insertField(QStringLiteral("Category"), QStringLiteral("List"), QStringLiteral("Hardware, Peripherals, Audio, Network"), false, true, {}, 2, QStringLiteral("Asset category"));
-    const int fStatus = insertField(QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("In Stock:green, Low Stock:yellow, Ordered:blue, Retired:gray"), false, true, {}, 3, QStringLiteral("Current stock status"));
-    const int fQty = insertField(QStringLiteral("Qty"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Sum"), 4, QStringLiteral("Units on hand"));
-    const int fPrice = insertField(QStringLiteral("Price"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Average"), 5, QStringLiteral("Unit cost in EUR"));
-    const int fTotal = insertField(QStringLiteral("Total"), QStringLiteral("Formula"), QStringLiteral("[Qty] * [Price]"), false, false, QStringLiteral("Sum"), 6, QStringLiteral("Computed value"));
-    const int fRating = insertField(QStringLiteral("Rating"), QStringLiteral("Stars"), {}, false, false, {}, 7, QStringLiteral("Condition rating 1-5"));
+    const int fPhoto = insertField(QStringLiteral("Photo"), QStringLiteral("Image"), {}, false, false, {}, 1, QStringLiteral("Product photo"));
+    const int fItem = insertField(QStringLiteral("Item"), QStringLiteral("Text"), {}, true, false, {}, 2, QStringLiteral("Equipment name"));
+    const int fCat = insertField(QStringLiteral("Category"), QStringLiteral("List"), QStringLiteral("Hardware, Peripherals, Audio, Network"), false, true, {}, 3, QStringLiteral("Asset category"));
+    const int fStatus = insertField(QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("In Stock:green, Low Stock:yellow, Ordered:blue, Retired:gray"), false, true, {}, 4, QStringLiteral("Current stock status"));
+    const int fQty = insertField(QStringLiteral("Qty"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Sum"), 5, QStringLiteral("Units on hand"));
+    const int fPrice = insertField(QStringLiteral("Price"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Average"), 6, QStringLiteral("Unit cost in EUR"));
+    const int fTotal = insertField(QStringLiteral("Total"), QStringLiteral("Formula"), QStringLiteral("[Qty] * [Price]"), false, false, QStringLiteral("Sum"), 7, QStringLiteral("Computed value"));
+    const int fRating = insertField(QStringLiteral("Rating"), QStringLiteral("Stars"), {}, false, false, {}, 8, QStringLiteral("Condition rating 1-5"));
+
+    auto insertSampleBlob = [&](const QString &filename) -> QString {
+        QFile res(QStringLiteral(":/samples/") + filename);
+        if (!res.open(QIODevice::ReadOnly))
+            return {};
+        const QByteArray bytes = res.readAll();
+        QImage img;
+        img.loadFromData(bytes);
+
+        QSqlQuery bq(db);
+        bq.prepare(QStringLiteral(
+            "INSERT INTO blobs (filename, mime_type, width, height, data, created_at) "
+            "VALUES (?, 'image/jpeg', ?, ?, ?, ?)"));
+        bq.addBindValue(filename);
+        bq.addBindValue(img.width());
+        bq.addBindValue(img.height());
+        bq.addBindValue(bytes);
+        bq.addBindValue(ts);
+        if (!bq.exec())
+            return {};
+        return QStringLiteral("blob:%1").arg(bq.lastInsertId().toInt());
+    };
 
     struct SampleRow {
+        QString photoFile;
         QString item;
         QString cat;
         QString status;
@@ -1269,19 +1293,20 @@ int Backend::createSampleTable() {
         QString rating;
     };
     const QList<SampleRow> rows = {
-        {QStringLiteral("ThinkPad X1"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("6"), QStringLiteral("1450"), QStringLiteral("8700"), QStringLiteral("5")},
-        {QStringLiteral("Keychron Q1"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("12"), QStringLiteral("195"), QStringLiteral("2340"), QStringLiteral("5")},
-        {QStringLiteral("Shure MV7 Mic"), QStringLiteral("Audio"), QStringLiteral("Low Stock"), QStringLiteral("2"), QStringLiteral("260"), QStringLiteral("520"), QStringLiteral("4")},
-        {QStringLiteral("Ubiquiti U7 AP"), QStringLiteral("Network"), QStringLiteral("Ordered"), QStringLiteral("4"), QStringLiteral("189"), QStringLiteral("756"), QStringLiteral("5")},
-        {QStringLiteral("Dell 27\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("8"), QStringLiteral("540"), QStringLiteral("4320"), QStringLiteral("4")},
+        {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad X1"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("6"), QStringLiteral("1450"), QStringLiteral("8700"), QStringLiteral("5")},
+        {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q1"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("12"), QStringLiteral("195"), QStringLiteral("2340"), QStringLiteral("5")},
+        {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure MV7 Mic"), QStringLiteral("Audio"), QStringLiteral("Low Stock"), QStringLiteral("2"), QStringLiteral("260"), QStringLiteral("520"), QStringLiteral("4")},
+        {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U7 AP"), QStringLiteral("Network"), QStringLiteral("Ordered"), QStringLiteral("4"), QStringLiteral("189"), QStringLiteral("756"), QStringLiteral("5")},
+        {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 27\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("8"), QStringLiteral("540"), QStringLiteral("4320"), QStringLiteral("4")},
     };
 
     for (int i = 0; i < rows.size(); ++i) {
         const int recIdx = i + 1;
         const SampleRow &r = rows.at(i);
+        const QString photoRef = insertSampleBlob(r.photoFile);
         const QList<QPair<int, QString>> pairs = {
-            {fItem, r.item}, {fCat, r.cat}, {fStatus, r.status}, {fQty, r.qty},
-            {fPrice, r.price}, {fTotal, r.total}, {fRating, r.rating}
+            {fPhoto, photoRef}, {fItem, r.item}, {fCat, r.cat}, {fStatus, r.status},
+            {fQty, r.qty}, {fPrice, r.price}, {fTotal, r.total}, {fRating, r.rating}
         };
         for (const auto &p : pairs) {
             QSqlQuery vq(db);
