@@ -20,6 +20,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
+#include <QTimer>
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -1209,28 +1210,32 @@ void Backend::selectTableByIndex(int index) {
 
 int Backend::createSampleTable() {
     clearMessages();
-    const int tableId = createTable(tr("Inventory"), true);
-    if (tableId <= 0)
+    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+    if (!db.isOpen())
         return 0;
 
-    // Pop the single table undo step and replace with one undo snapshot before the whole sample creation.
-    if (!m_undoStack.isEmpty()) {
-        const Snapshot beforeSample = m_undoStack.takeLast();
-        restoreSnapshot(beforeSample);
-        pushUndoSnapshot();
+    pushUndoSnapshot();
+    if (!db.transaction()) {
+        m_undoStack.removeLast();
+        emit undoStackChanged();
+        setError(tr("Could not start transaction: %1").arg(db.lastError().text()));
+        return 0;
     }
 
-    QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
     const QString ts = nowIso();
     QSqlQuery q(db);
     q.prepare(QStringLiteral("INSERT INTO tables (name, lifo, record_index, created_at, updated_at) VALUES (?, 1, 0, ?, ?)"));
     q.addBindValue(tr("Inventory"));
     q.addBindValue(ts);
     q.addBindValue(ts);
-    if (!q.exec())
+    if (!q.exec()) {
+        db.rollback();
+        m_undoStack.removeLast();
+        emit undoStackChanged();
+        setError(tr("Could not create table: %1").arg(q.lastError().text()));
         return 0;
+    }
     const int tId = q.lastInsertId().toInt();
-    m_currentTableId = tId;
 
     auto insertField = [&](const QString &name, const QString &datatype, const QString &items,
                            bool obligatoire, bool filtre, const QString &operation, int order, const QString &desc) {
@@ -1300,6 +1305,11 @@ int Backend::createSampleTable() {
         {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 27\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("8"), QStringLiteral("540"), QStringLiteral("4320"), QStringLiteral("4")},
     };
 
+    QSqlQuery vq(db);
+    vq.prepare(QStringLiteral(
+        "INSERT INTO \"values\" (field_id, record_index, data, old_value, created_at, updated_at) "
+        "VALUES (?, ?, ?, '', ?, ?)"));
+
     for (int i = 0; i < rows.size(); ++i) {
         const int recIdx = i + 1;
         const SampleRow &r = rows.at(i);
@@ -1309,15 +1319,11 @@ int Backend::createSampleTable() {
             {fQty, r.qty}, {fPrice, r.price}, {fTotal, r.total}, {fRating, r.rating}
         };
         for (const auto &p : pairs) {
-            QSqlQuery vq(db);
-            vq.prepare(QStringLiteral(
-                "INSERT INTO \"values\" (field_id, record_index, data, old_value, created_at, updated_at) "
-                "VALUES (?, ?, ?, '', ?, ?)"));
-            vq.addBindValue(p.first);
-            vq.addBindValue(recIdx);
-            vq.addBindValue(p.second);
-            vq.addBindValue(ts);
-            vq.addBindValue(ts);
+            vq.bindValue(0, p.first);
+            vq.bindValue(1, recIdx);
+            vq.bindValue(2, p.second);
+            vq.bindValue(3, ts);
+            vq.bindValue(4, ts);
             vq.exec();
         }
     }
@@ -1328,9 +1334,36 @@ int Backend::createSampleTable() {
     uq.addBindValue(tId);
     uq.exec();
 
+    if (!db.commit()) {
+        db.rollback();
+        m_undoStack.removeLast();
+        emit undoStackChanged();
+        setError(tr("Could not commit sample table: %1").arg(db.lastError().text()));
+        return 0;
+    }
+
+    m_currentTableId = tId;
+    m_searchText.clear();
+    m_fieldFilters.clear();
+    m_dateFilters.clear();
+    m_sortFieldId = 0;
+    m_sortAscending = false;
+    emit filtersChanged();
+    emit sortChanged();
     reloadAll();
     setNotice(tr("Created sample table \"%1\".").arg(tr("Inventory")));
     return tId;
+}
+
+void Backend::createSampleTableAsync() {
+    if (m_busy)
+        return;
+    setBusy(true, tr("Creating sample table…"), -1.0);
+    // Yield to the event loop so Qt Quick renders the progress indicator before running SQLite writes.
+    QTimer::singleShot(16, this, [this]() {
+        createSampleTable();
+        setBusy(false);
+    });
 }
 
 bool Backend::validateFieldOptions(const QString &datatype, const QString &items, QString *errorOut) const {
@@ -2686,6 +2719,15 @@ void Backend::setNotice(const QString &message) {
     m_noticeMessage = message;
     m_errorMessage.clear();
     emit statusChanged();
+}
+
+void Backend::setBusy(bool busy, const QString &message, double progress) {
+    if (m_busy == busy && m_busyMessage == message && qFuzzyCompare(m_busyProgress, progress))
+        return;
+    m_busy = busy;
+    m_busyMessage = busy ? message : QString();
+    m_busyProgress = busy ? progress : -1.0;
+    emit busyChanged();
 }
 
 // Follows Aikku Access ImportCollection#detect_string_type:

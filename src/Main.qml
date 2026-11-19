@@ -53,7 +53,7 @@ ApplicationWindow {
 
     readonly property bool overlayOpen: helpVisible || tableDialogVisible || fieldsDialogVisible
         || recordDialogVisible || deleteTableConfirmVisible || deleteRecordConfirmVisible
-        || discardRecordConfirmVisible || quitConfirmVisible || imagePreviewVisible
+        || discardRecordConfirmVisible || quitConfirmVisible || imagePreviewVisible || backend.busy
     readonly property bool typingInSearch: searchInput.activeFocus
 
     readonly property bool tableHasImageField: {
@@ -814,8 +814,12 @@ ApplicationWindow {
                                 font.pixelSize: 12
                                 elide: Text.ElideRight
                             }
+                            opacity: backend.busy ? 0.5 : 1.0
                             HoverHandler { id: sampleBtnHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: backend.createSampleTable() }
+                            TapHandler {
+                                enabled: !backend.busy
+                                onTapped: backend.createSampleTableAsync()
+                            }
                         }
                     }
                 }
@@ -917,7 +921,8 @@ ApplicationWindow {
                             }
                             DialogButton {
                                 text: qsTr("Load sample")
-                                onClicked: backend.createSampleTable()
+                                enabled: !backend.busy
+                                onClicked: backend.createSampleTableAsync()
                             }
                         }
                     }
@@ -3649,6 +3654,62 @@ ApplicationWindow {
                         text: qsTr("Click image to zoom · Scroll to adjust · Esc to close")
                         color: "#8a8a94"
                         font.pixelSize: 11
+                    }
+                }
+            }
+        }
+
+        // --- Busy / Progress Indicator Overlay ---
+        Rectangle {
+            id: busyOverlay
+            objectName: "busyOverlay"
+            visible: backend.busy
+            anchors.fill: parent
+            color: "#9909090c"
+            z: 150
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                preventStealing: true
+                onPressed: (mouse) => { mouse.accepted = true }
+            }
+
+            DialogPanel {
+                anchors.centerIn: parent
+                width: Math.max(280, busyCol.implicitWidth + 48)
+                height: busyCol.implicitHeight + 36
+
+                ColumnLayout {
+                    id: busyCol
+                    anchors.centerIn: parent
+                    width: parent.width - 40
+                    spacing: 12
+
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 10
+
+                        BusyIndicator {
+                            running: backend.busy
+                            implicitWidth: 22
+                            implicitHeight: 22
+                            Material.accent: theme.accent
+                        }
+
+                        Label {
+                            text: backend.busyMessage !== "" ? backend.busyMessage : qsTr("Working…")
+                            color: "white"
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                        }
+                    }
+
+                    ProgressBar {
+                        Layout.fillWidth: true
+                        indeterminate: backend.busyProgress < 0
+                        value: backend.busyProgress >= 0 ? backend.busyProgress : 0
+                        Material.accent: theme.accent
                     }
                 }
             }

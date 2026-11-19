@@ -713,6 +713,18 @@ private slots:
         QVERIFY(recordFileField->isVisible());
         QCOMPARE(recordFileField->height(), 84.0);
         QMetaObject::invokeMethod(window, "closeRecordDialog");
+
+        // Verify createSampleTableAsync displays the busy progress overlay and finishes cleanly.
+        const int tablesBefore = backend.tableCount();
+        auto *busyOverlay = findVisualItem(window->contentItem(), "busyOverlay");
+        QVERIFY(busyOverlay != nullptr);
+        QCOMPARE(busyOverlay->isVisible(), false);
+        backend.createSampleTableAsync();
+        QCOMPARE(backend.busy(), true);
+        QCOMPARE(busyOverlay->isVisible(), true);
+        QTRY_COMPARE(backend.busy(), false);
+        QCOMPARE(busyOverlay->isVisible(), false);
+        QCOMPARE(backend.tableCount(), tablesBefore + 1);
     }
 
 private:

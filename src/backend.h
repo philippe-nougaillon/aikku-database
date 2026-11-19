@@ -40,6 +40,9 @@ class Backend : public QObject {
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY undoStackChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY statusChanged)
     Q_PROPERTY(QString noticeMessage READ noticeMessage NOTIFY statusChanged)
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    Q_PROPERTY(QString busyMessage READ busyMessage NOTIFY busyChanged)
+    Q_PROPERTY(double busyProgress READ busyProgress NOTIFY busyChanged)
 
 public:
     explicit Backend(const QString &databasePath = {}, FilePicker *filePicker = nullptr, QObject *parent = nullptr);
@@ -81,6 +84,9 @@ public:
 
     QString errorMessage() const { return m_errorMessage; }
     QString noticeMessage() const { return m_noticeMessage; }
+    bool busy() const { return m_busy; }
+    QString busyMessage() const { return m_busyMessage; }
+    double busyProgress() const { return m_busyProgress; }
 
     Q_INVOKABLE void primaryAction();
 
@@ -91,6 +97,7 @@ public:
     Q_INVOKABLE void selectTable(int tableId);
     Q_INVOKABLE void selectTableByIndex(int index);
     Q_INVOKABLE int createSampleTable();
+    Q_INVOKABLE void createSampleTableAsync();
 
     // Field (attribute) management
     Q_INVOKABLE int addField(const QString &name, const QString &datatype,
@@ -170,6 +177,7 @@ signals:
     void sortChanged();
     void undoStackChanged();
     void statusChanged();
+    void busyChanged();
     void imagePicked(int fieldId, const QString &blobRef);
     void filePicked(int fieldId, const QString &blobRef);
 
@@ -222,6 +230,7 @@ private:
     void pushUndoSnapshot();
     void setError(const QString &message);
     void setNotice(const QString &message);
+    void setBusy(bool busy, const QString &message = {}, double progress = -1.0);
     bool validateFieldOptions(const QString &datatype, const QString &items, QString *errorOut) const;
 
     QString m_connectionName;
@@ -257,4 +266,7 @@ private:
 
     QString m_errorMessage;
     QString m_noticeMessage;
+    bool m_busy = false;
+    QString m_busyMessage;
+    double m_busyProgress = -1.0;
 };
