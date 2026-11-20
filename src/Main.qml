@@ -3696,25 +3696,32 @@ ApplicationWindow {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        spacing: 12
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 2
 
                             Label {
+                                Layout.fillWidth: true
                                 text: qsTr("Choose a sample table")
                                 color: "white"
                                 font.pixelSize: 17
                                 font.weight: Font.DemiBold
+                                elide: Text.ElideRight
                             }
                             Label {
+                                Layout.fillWidth: true
                                 text: qsTr("Pick a ready-made collection with embedded product photos, filters, and totals.")
                                 color: "#9a9aa4"
                                 font.pixelSize: 12
+                                wrapMode: Text.WordWrap
                             }
                         }
 
                         DialogButton {
+                            objectName: "sampleDialogCloseBtn"
+                            Layout.alignment: Qt.AlignRight | Qt.AlignTop
                             text: qsTr("Close")
                             onClicked: win.sampleDialogVisible = false
                         }

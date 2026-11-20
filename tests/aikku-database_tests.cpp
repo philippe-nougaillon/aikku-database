@@ -747,9 +747,17 @@ private slots:
 
         window->setProperty("sampleDialogVisible", true);
         QTest::qWait(50);
+        auto *samplePanel = findVisualItem(window->contentItem(), "sampleDialogPanel");
+        auto *sampleCloseBtn = findVisualItem(window->contentItem(), "sampleDialogCloseBtn");
         auto *flowersCard = findVisualItem(window->contentItem(), "samplePresetCard_flowers");
-        QVERIFY(flowersCard != nullptr);
+        QVERIFY(samplePanel != nullptr && sampleCloseBtn != nullptr && flowersCard != nullptr);
         QVERIFY(flowersCard->isVisible());
+        const QPointF closeTopRight = sampleCloseBtn->mapToItem(samplePanel, QPointF(sampleCloseBtn->width(), 0));
+        QVERIFY2(closeTopRight.x() <= samplePanel->width() - 16 && closeTopRight.x() >= samplePanel->width() - 24
+                 && closeTopRight.y() >= 16 && closeTopRight.y() <= 24,
+                 qPrintable(QString("Expected Close button aligned to top-right inside sample panel (%1x%2), got top-right (%3,%4)")
+                            .arg(samplePanel->width()).arg(samplePanel->height())
+                            .arg(closeTopRight.x()).arg(closeTopRight.y())));
 
         const QPoint cardCenter = flowersCard->mapToScene(
             QPointF(flowersCard->width() / 2.0, flowersCard->height() / 2.0)).toPoint();
