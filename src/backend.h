@@ -96,8 +96,8 @@ public:
     Q_INVOKABLE bool deleteTable(int tableId);
     Q_INVOKABLE void selectTable(int tableId);
     Q_INVOKABLE void selectTableByIndex(int index);
-    Q_INVOKABLE int createSampleTable();
-    Q_INVOKABLE void createSampleTableAsync();
+    Q_INVOKABLE int createSampleTable(const QString &preset = QStringLiteral("inventory"));
+    Q_INVOKABLE void createSampleTableAsync(const QString &preset = QStringLiteral("inventory"));
 
     // Field (attribute) management
     Q_INVOKABLE int addField(const QString &name, const QString &datatype,

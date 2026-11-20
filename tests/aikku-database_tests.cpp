@@ -440,6 +440,29 @@ private slots:
         QCOMPARE(backend.blobInfo(noteRef).value("extension").toString(), QString("TXT"));
     }
 
+    void sampleTablePresets() {
+        QTemporaryDir dir;
+        Backend backend(dir.filePath("samples.sqlite"));
+
+        QVERIFY(backend.createSampleTable("flowers") > 0);
+        QCOMPARE(backend.currentTableName(), QString("Flowers"));
+        QCOMPARE(backend.recordCount(), 12);
+        QCOMPARE(backend.fields().first().toMap().value("datatype").toString(), QString("Image"));
+        QVERIFY(backend.records().first().toMap().value("cells").toList().first().toMap().value("imageUrl").toString().startsWith("image://aikku/"));
+
+        QVERIFY(backend.createSampleTable("cars") > 0);
+        QCOMPARE(backend.currentTableName(), QString("Cars"));
+        QCOMPARE(backend.recordCount(), 12);
+        QVERIFY(backend.records().first().toMap().value("cells").toList().first().toMap().value("imageUrl").toString().startsWith("image://aikku/"));
+
+        QVERIFY(backend.createSampleTable("sportswear") > 0);
+        QCOMPARE(backend.currentTableName(), QString("Sportswear"));
+        QCOMPARE(backend.recordCount(), 12);
+        QVERIFY(backend.records().first().toMap().value("cells").toList().first().toMap().value("imageUrl").toString().startsWith("image://aikku/"));
+
+        QCOMPARE(backend.tableCount(), 3);
+    }
+
     void themeFallsBack() {
         QTemporaryDir dir;
         Theme theme(dir.path());
@@ -716,17 +739,29 @@ private slots:
         QCOMPARE(recordFileField->height(), 84.0);
         QMetaObject::invokeMethod(window, "closeRecordDialog");
 
-        // Verify createSampleTableAsync displays the busy progress overlay and finishes cleanly.
+        // Verify Sample Table Chooser modal opens and clicking a preset card creates it with the busy overlay.
         const int tablesBefore = backend.tableCount();
         auto *busyOverlay = findVisualItem(window->contentItem(), "busyOverlay");
         QVERIFY(busyOverlay != nullptr);
         QCOMPARE(busyOverlay->isVisible(), false);
-        backend.createSampleTableAsync();
+
+        window->setProperty("sampleDialogVisible", true);
+        QTest::qWait(50);
+        auto *flowersCard = findVisualItem(window->contentItem(), "samplePresetCard_flowers");
+        QVERIFY(flowersCard != nullptr);
+        QVERIFY(flowersCard->isVisible());
+
+        const QPoint cardCenter = flowersCard->mapToScene(
+            QPointF(flowersCard->width() / 2.0, flowersCard->height() / 2.0)).toPoint();
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, cardCenter);
+        QCOMPARE(window->property("sampleDialogVisible").toBool(), false);
         QCOMPARE(backend.busy(), true);
         QCOMPARE(busyOverlay->isVisible(), true);
         QTRY_COMPARE(backend.busy(), false);
         QCOMPARE(busyOverlay->isVisible(), false);
         QCOMPARE(backend.tableCount(), tablesBefore + 1);
+        QCOMPARE(backend.currentTableName(), QString("Flowers"));
+        QCOMPARE(backend.recordCount(), 12);
     }
 
 private:

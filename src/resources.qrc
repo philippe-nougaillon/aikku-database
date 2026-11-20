@@ -20,5 +20,17 @@
         <file alias="samples/mx-master-3s.jpg">samples/mx-master-3s.jpg</file>
         <file alias="samples/lg-34-ultrawide.jpg">samples/lg-34-ultrawide.jpg</file>
         <file alias="samples/caldigit-ts4.jpg">samples/caldigit-ts4.jpg</file>
+        <file alias="samples/flower-rose.jpg">samples/flower-rose.jpg</file>
+        <file alias="samples/flower-tulip.jpg">samples/flower-tulip.jpg</file>
+        <file alias="samples/flower-lavender.jpg">samples/flower-lavender.jpg</file>
+        <file alias="samples/flower-orchid.jpg">samples/flower-orchid.jpg</file>
+        <file alias="samples/car-sports.jpg">samples/car-sports.jpg</file>
+        <file alias="samples/car-electric.jpg">samples/car-electric.jpg</file>
+        <file alias="samples/car-suv.jpg">samples/car-suv.jpg</file>
+        <file alias="samples/car-classic.jpg">samples/car-classic.jpg</file>
+        <file alias="samples/sport-shoes.jpg">samples/sport-shoes.jpg</file>
+        <file alias="samples/sport-shoes-coral.jpg">samples/sport-shoes-coral.jpg</file>
+        <file alias="samples/sport-jacket.jpg">samples/sport-jacket.jpg</file>
+        <file alias="samples/sport-jacket-forest.jpg">samples/sport-jacket-forest.jpg</file>
     </qresource>
 </RCC>

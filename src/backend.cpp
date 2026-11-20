@@ -1208,11 +1208,145 @@ void Backend::selectTableByIndex(int index) {
     selectTable(m_tables.at(index).toMap().value(QStringLiteral("id")).toInt());
 }
 
-int Backend::createSampleTable() {
+int Backend::createSampleTable(const QString &preset) {
     clearMessages();
     QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
     if (!db.isOpen())
         return 0;
+
+    struct SampleFieldDef {
+        QString name;
+        QString datatype;
+        QString items;
+        bool obligatoire = false;
+        bool filtre = false;
+        QString operation;
+        QString desc;
+    };
+
+    const QString key = preset.trimmed().toLower();
+    QString tableTitle;
+    QList<SampleFieldDef> fieldDefs;
+    QList<QStringList> sampleRows;
+
+    if (key == QLatin1String("flowers")) {
+        tableTitle = tr("Flowers");
+        fieldDefs = {
+            {QStringLiteral("Photo"), QStringLiteral("Image"), {}, false, false, {}, QStringLiteral("Flower photo")},
+            {QStringLiteral("Flower"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Variety name")},
+            {QStringLiteral("Season"), QStringLiteral("List"), QStringLiteral("Spring, Summer, Autumn, Winter, Year-round"), false, true, {}, QStringLiteral("Peak blooming season")},
+            {QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("In Bloom:green, Seasonal:yellow, Rare:purple, Out of Season:gray"), false, true, {}, QStringLiteral("Availability")},
+            {QStringLiteral("Stems"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Stems in stock")},
+            {QStringLiteral("Price"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Average"), QStringLiteral("Price per stem")},
+            {QStringLiteral("Value"), QStringLiteral("Formula"), QStringLiteral("[Stems] * [Price]"), false, false, QStringLiteral("Sum"), QStringLiteral("Stock value")},
+            {QStringLiteral("Fragrance"), QStringLiteral("Stars"), {}, false, false, {}, QStringLiteral("Fragrance intensity 1-5")},
+        };
+        sampleRows = {
+            {QStringLiteral("flower-rose.jpg"), QStringLiteral("Velvet Red Rose"), QStringLiteral("Year-round"), QStringLiteral("In Bloom"), QStringLiteral("40"), QStringLiteral("4.50"), QStringLiteral("180"), QStringLiteral("5")},
+            {QStringLiteral("flower-tulip.jpg"), QStringLiteral("Golden Parrot Tulip"), QStringLiteral("Spring"), QStringLiteral("In Bloom"), QStringLiteral("60"), QStringLiteral("2.50"), QStringLiteral("150"), QStringLiteral("4")},
+            {QStringLiteral("flower-lavender.jpg"), QStringLiteral("Provence Lavender"), QStringLiteral("Summer"), QStringLiteral("In Bloom"), QStringLiteral("50"), QStringLiteral("3.00"), QStringLiteral("150"), QStringLiteral("5")},
+            {QStringLiteral("flower-orchid.jpg"), QStringLiteral("White Moth Orchid"), QStringLiteral("Year-round"), QStringLiteral("In Bloom"), QStringLiteral("15"), QStringLiteral("18.00"), QStringLiteral("270"), QStringLiteral("4")},
+            {QStringLiteral("flower-rose.jpg"), QStringLiteral("Burgundy Damask Rose"), QStringLiteral("Summer"), QStringLiteral("Seasonal"), QStringLiteral("25"), QStringLiteral("5.50"), QStringLiteral("137.50"), QStringLiteral("5")},
+            {QStringLiteral("flower-tulip.jpg"), QStringLiteral("Apricot Triumph Tulip"), QStringLiteral("Spring"), QStringLiteral("Seasonal"), QStringLiteral("45"), QStringLiteral("2.80"), QStringLiteral("126"), QStringLiteral("3")},
+            {QStringLiteral("flower-lavender.jpg"), QStringLiteral("English Violet Lavender"), QStringLiteral("Summer"), QStringLiteral("In Bloom"), QStringLiteral("35"), QStringLiteral("3.20"), QStringLiteral("112"), QStringLiteral("5")},
+            {QStringLiteral("flower-orchid.jpg"), QStringLiteral("Ivory Calla Orchid"), QStringLiteral("Winter"), QStringLiteral("Rare"), QStringLiteral("10"), QStringLiteral("22.00"), QStringLiteral("220"), QStringLiteral("4")},
+            {QStringLiteral("flower-rose.jpg"), QStringLiteral("Crimson Tea Rose"), QStringLiteral("Autumn"), QStringLiteral("In Bloom"), QStringLiteral("30"), QStringLiteral("4.80"), QStringLiteral("144"), QStringLiteral("5")},
+            {QStringLiteral("flower-tulip.jpg"), QStringLiteral("Sunburst Darwin Tulip"), QStringLiteral("Spring"), QStringLiteral("Out of Season"), QStringLiteral("20"), QStringLiteral("2.20"), QStringLiteral("44"), QStringLiteral("3")},
+            {QStringLiteral("flower-lavender.jpg"), QStringLiteral("Wild Alpine Lavender"), QStringLiteral("Autumn"), QStringLiteral("Rare"), QStringLiteral("18"), QStringLiteral("4.50"), QStringLiteral("81"), QStringLiteral("5")},
+            {QStringLiteral("flower-orchid.jpg"), QStringLiteral("Moonlight Phalaenopsis"), QStringLiteral("Winter"), QStringLiteral("In Bloom"), QStringLiteral("12"), QStringLiteral("24.00"), QStringLiteral("288"), QStringLiteral("4")},
+        };
+    } else if (key == QLatin1String("cars")) {
+        tableTitle = tr("Cars");
+        fieldDefs = {
+            {QStringLiteral("Photo"), QStringLiteral("Image"), {}, false, false, {}, QStringLiteral("Vehicle photo")},
+            {QStringLiteral("Model"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Make and model")},
+            {QStringLiteral("Type"), QStringLiteral("List"), QStringLiteral("Sports, Electric, SUV, Classic"), false, true, {}, QStringLiteral("Body style")},
+            {QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("Available:green, Reserved:blue, Service:yellow, Sold:gray"), false, true, {}, QStringLiteral("Showroom status")},
+            {QStringLiteral("Year"), QStringLiteral("Number"), {}, true, false, {}, QStringLiteral("Model year")},
+            {QStringLiteral("Power (HP)"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Average"), QStringLiteral("Horsepower")},
+            {QStringLiteral("Price"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Price in EUR")},
+            {QStringLiteral("Rating"), QStringLiteral("Stars"), {}, false, false, {}, QStringLiteral("Condition rating 1-5")},
+        };
+        sampleRows = {
+            {QStringLiteral("car-sports.jpg"), QStringLiteral("Porsche 911 Carrera"), QStringLiteral("Sports"), QStringLiteral("Available"), QStringLiteral("2025"), QStringLiteral("394"), QStringLiteral("128500"), QStringLiteral("5")},
+            {QStringLiteral("car-electric.jpg"), QStringLiteral("Audi e-tron GT"), QStringLiteral("Electric"), QStringLiteral("Available"), QStringLiteral("2025"), QStringLiteral("523"), QStringLiteral("106900"), QStringLiteral("5")},
+            {QStringLiteral("car-suv.jpg"), QStringLiteral("Land Rover Defender 110"), QStringLiteral("SUV"), QStringLiteral("Available"), QStringLiteral("2024"), QStringLiteral("400"), QStringLiteral("84500"), QStringLiteral("5")},
+            {QStringLiteral("car-classic.jpg"), QStringLiteral("Jaguar E-Type Series 1"), QStringLiteral("Classic"), QStringLiteral("Reserved"), QStringLiteral("1964"), QStringLiteral("265"), QStringLiteral("165000"), QStringLiteral("5")},
+            {QStringLiteral("car-sports.jpg"), QStringLiteral("Porsche 911 GT3"), QStringLiteral("Sports"), QStringLiteral("Reserved"), QStringLiteral("2025"), QStringLiteral("510"), QStringLiteral("198000"), QStringLiteral("5")},
+            {QStringLiteral("car-electric.jpg"), QStringLiteral("Porsche Taycan 4S"), QStringLiteral("Electric"), QStringLiteral("Available"), QStringLiteral("2025"), QStringLiteral("590"), QStringLiteral("118400"), QStringLiteral("5")},
+            {QStringLiteral("car-suv.jpg"), QStringLiteral("Rivian R1S Dual"), QStringLiteral("SUV"), QStringLiteral("Service"), QStringLiteral("2024"), QStringLiteral("665"), QStringLiteral("89900"), QStringLiteral("4")},
+            {QStringLiteral("car-classic.jpg"), QStringLiteral("Ferrari 250 GT Lusso"), QStringLiteral("Classic"), QStringLiteral("Sold"), QStringLiteral("1963"), QStringLiteral("240"), QStringLiteral("1450000"), QStringLiteral("5")},
+            {QStringLiteral("car-sports.jpg"), QStringLiteral("Alpine A110 R"), QStringLiteral("Sports"), QStringLiteral("Available"), QStringLiteral("2024"), QStringLiteral("300"), QStringLiteral("105000"), QStringLiteral("5")},
+            {QStringLiteral("car-electric.jpg"), QStringLiteral("Polestar 2 Long Range"), QStringLiteral("Electric"), QStringLiteral("Available"), QStringLiteral("2025"), QStringLiteral("421"), QStringLiteral("58900"), QStringLiteral("4")},
+            {QStringLiteral("car-suv.jpg"), QStringLiteral("Mercedes G 580 EQ"), QStringLiteral("SUV"), QStringLiteral("Reserved"), QStringLiteral("2025"), QStringLiteral("587"), QStringLiteral("148000"), QStringLiteral("5")},
+            {QStringLiteral("car-classic.jpg"), QStringLiteral("Alfa Romeo Giulia GTA"), QStringLiteral("Classic"), QStringLiteral("Service"), QStringLiteral("1966"), QStringLiteral("170"), QStringLiteral("210000"), QStringLiteral("4")},
+        };
+    } else if (key == QLatin1String("sportswear")) {
+        tableTitle = tr("Sportswear");
+        fieldDefs = {
+            {QStringLiteral("Photo"), QStringLiteral("Image"), {}, false, false, {}, QStringLiteral("Product photo")},
+            {QStringLiteral("Product"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Apparel or gear name")},
+            {QStringLiteral("Category"), QStringLiteral("List"), QStringLiteral("Running, Trail, Alpine, Training"), false, true, {}, QStringLiteral("Sport discipline")},
+            {QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("In Stock:green, Low Stock:yellow, Pre-order:blue, Discontinued:gray"), false, true, {}, QStringLiteral("Stock availability")},
+            {QStringLiteral("Stock"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Units available")},
+            {QStringLiteral("Price"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Average"), QStringLiteral("Retail price in EUR")},
+            {QStringLiteral("Total"), QStringLiteral("Formula"), QStringLiteral("[Stock] * [Price]"), false, false, QStringLiteral("Sum"), QStringLiteral("Inventory value")},
+            {QStringLiteral("Rating"), QStringLiteral("Stars"), {}, false, false, {}, QStringLiteral("Customer rating 1-5")},
+        };
+        sampleRows = {
+            {QStringLiteral("sport-shoes.jpg"), QStringLiteral("Carbon Tempo Pro"), QStringLiteral("Running"), QStringLiteral("In Stock"), QStringLiteral("18"), QStringLiteral("249"), QStringLiteral("4482"), QStringLiteral("5")},
+            {QStringLiteral("sport-jacket.jpg"), QStringLiteral("Alpine Storm Shell"), QStringLiteral("Alpine"), QStringLiteral("In Stock"), QStringLiteral("10"), QStringLiteral("389"), QStringLiteral("3890"), QStringLiteral("5")},
+            {QStringLiteral("sport-shoes-coral.jpg"), QStringLiteral("Aero Glide Coral"), QStringLiteral("Running"), QStringLiteral("In Stock"), QStringLiteral("14"), QStringLiteral("179"), QStringLiteral("2506"), QStringLiteral("5")},
+            {QStringLiteral("sport-jacket-forest.jpg"), QStringLiteral("Forest Trail Gore-Tex"), QStringLiteral("Trail"), QStringLiteral("Low Stock"), QStringLiteral("4"), QStringLiteral("329"), QStringLiteral("1316"), QStringLiteral("5")},
+            {QStringLiteral("sport-shoes.jpg"), QStringLiteral("Marathon Vapor Elite"), QStringLiteral("Running"), QStringLiteral("Pre-order"), QStringLiteral("12"), QStringLiteral("279"), QStringLiteral("3348"), QStringLiteral("5")},
+            {QStringLiteral("sport-jacket.jpg"), QStringLiteral("Cobalt Windbreaker"), QStringLiteral("Trail"), QStringLiteral("In Stock"), QStringLiteral("16"), QStringLiteral("159"), QStringLiteral("2544"), QStringLiteral("4")},
+            {QStringLiteral("sport-shoes-coral.jpg"), QStringLiteral("Summit Speed Racer"), QStringLiteral("Trail"), QStringLiteral("Low Stock"), QStringLiteral("5"), QStringLiteral("199"), QStringLiteral("995"), QStringLiteral("4")},
+            {QStringLiteral("sport-jacket-forest.jpg"), QStringLiteral("Ridge Insulated Parka"), QStringLiteral("Alpine"), QStringLiteral("Pre-order"), QStringLiteral("6"), QStringLiteral("449"), QStringLiteral("2694"), QStringLiteral("5")},
+            {QStringLiteral("sport-shoes.jpg"), QStringLiteral("Track Sprint Trainer"), QStringLiteral("Training"), QStringLiteral("In Stock"), QStringLiteral("22"), QStringLiteral("139"), QStringLiteral("3058"), QStringLiteral("4")},
+            {QStringLiteral("sport-jacket.jpg"), QStringLiteral("Nordic Rain Anorak"), QStringLiteral("Alpine"), QStringLiteral("Discontinued"), QStringLiteral("2"), QStringLiteral("269"), QStringLiteral("538"), QStringLiteral("4")},
+            {QStringLiteral("sport-shoes-coral.jpg"), QStringLiteral("Daily Cushion Runner"), QStringLiteral("Training"), QStringLiteral("In Stock"), QStringLiteral("20"), QStringLiteral("149"), QStringLiteral("2980"), QStringLiteral("5")},
+            {QStringLiteral("sport-jacket-forest.jpg"), QStringLiteral("Pine Softshell Hoodie"), QStringLiteral("Training"), QStringLiteral("In Stock"), QStringLiteral("11"), QStringLiteral("219"), QStringLiteral("2409"), QStringLiteral("4")},
+        };
+    } else {
+        tableTitle = tr("Inventory");
+        fieldDefs = {
+            {QStringLiteral("Photo"), QStringLiteral("Image"), {}, false, false, {}, QStringLiteral("Product photo")},
+            {QStringLiteral("Item"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Equipment name")},
+            {QStringLiteral("Category"), QStringLiteral("List"), QStringLiteral("Hardware, Peripherals, Audio, Network"), false, true, {}, QStringLiteral("Asset category")},
+            {QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("In Stock:green, Low Stock:yellow, Ordered:blue, Retired:gray"), false, true, {}, QStringLiteral("Current stock status")},
+            {QStringLiteral("Qty"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Units on hand")},
+            {QStringLiteral("Price"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Average"), QStringLiteral("Unit cost in EUR")},
+            {QStringLiteral("Total"), QStringLiteral("Formula"), QStringLiteral("[Qty] * [Price]"), false, false, QStringLiteral("Sum"), QStringLiteral("Computed value")},
+            {QStringLiteral("Rating"), QStringLiteral("Stars"), {}, false, false, {}, QStringLiteral("Condition rating 1-5")},
+        };
+        sampleRows = {
+            {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad X1"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("6"), QStringLiteral("1450"), QStringLiteral("8700"), QStringLiteral("5")},
+            {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q1"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("12"), QStringLiteral("195"), QStringLiteral("2340"), QStringLiteral("5")},
+            {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure MV7 Mic"), QStringLiteral("Audio"), QStringLiteral("Low Stock"), QStringLiteral("2"), QStringLiteral("260"), QStringLiteral("520"), QStringLiteral("4")},
+            {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U7 AP"), QStringLiteral("Network"), QStringLiteral("Ordered"), QStringLiteral("4"), QStringLiteral("189"), QStringLiteral("756"), QStringLiteral("5")},
+            {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 27\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("8"), QStringLiteral("540"), QStringLiteral("4320"), QStringLiteral("4")},
+            {QStringLiteral("macbook-pro-14.jpg"), QStringLiteral("MacBook Pro 14\""), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("4"), QStringLiteral("2199"), QStringLiteral("8796"), QStringLiteral("5")},
+            {QStringLiteral("framework-13.jpg"), QStringLiteral("Framework 13"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("5"), QStringLiteral("1190"), QStringLiteral("5950"), QStringLiteral("5")},
+            {QStringLiteral("mac-studio.jpg"), QStringLiteral("Mac Studio M2"), QStringLiteral("Hardware"), QStringLiteral("Low Stock"), QStringLiteral("2"), QStringLiteral("2299"), QStringLiteral("4598"), QStringLiteral("5")},
+            {QStringLiteral("synology-ds923.jpg"), QStringLiteral("Synology DS923+"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("3"), QStringLiteral("650"), QStringLiteral("1950"), QStringLiteral("5")},
+            {QStringLiteral("raspberry-pi-5.jpg"), QStringLiteral("Raspberry Pi 5"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("15"), QStringLiteral("85"), QStringLiteral("1275"), QStringLiteral("4")},
+            {QStringLiteral("mx-master-3s.jpg"), QStringLiteral("Logitech MX Master 3S"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("14"), QStringLiteral("99"), QStringLiteral("1386"), QStringLiteral("5")},
+            {QStringLiteral("lg-34-ultrawide.jpg"), QStringLiteral("LG 34\" Ultrawide"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), QStringLiteral("2"), QStringLiteral("780"), QStringLiteral("1560"), QStringLiteral("4")},
+            {QStringLiteral("caldigit-ts4.jpg"), QStringLiteral("CalDigit TS4 Dock"), QStringLiteral("Peripherals"), QStringLiteral("Ordered"), QStringLiteral("5"), QStringLiteral("399"), QStringLiteral("1995"), QStringLiteral("5")},
+            {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad T14s"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("7"), QStringLiteral("1290"), QStringLiteral("9030"), QStringLiteral("4")},
+            {QStringLiteral("macbook-pro-14.jpg"), QStringLiteral("MacBook Pro 16\""), QStringLiteral("Hardware"), QStringLiteral("Ordered"), QStringLiteral("3"), QStringLiteral("2799"), QStringLiteral("8397"), QStringLiteral("5")},
+            {QStringLiteral("framework-13.jpg"), QStringLiteral("Framework 16"), QStringLiteral("Hardware"), QStringLiteral("Ordered"), QStringLiteral("2"), QStringLiteral("1699"), QStringLiteral("3398"), QStringLiteral("5")},
+            {QStringLiteral("mac-studio.jpg"), QStringLiteral("Mac mini M4"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), QStringLiteral("6"), QStringLiteral("699"), QStringLiteral("4194"), QStringLiteral("5")},
+            {QStringLiteral("synology-ds923.jpg"), QStringLiteral("Synology DS423+"), QStringLiteral("Network"), QStringLiteral("In Stock"), QStringLiteral("2"), QStringLiteral("520"), QStringLiteral("1040"), QStringLiteral("4")},
+            {QStringLiteral("raspberry-pi-5.jpg"), QStringLiteral("Raspberry Pi 4B"), QStringLiteral("Hardware"), QStringLiteral("Retired"), QStringLiteral("9"), QStringLiteral("65"), QStringLiteral("585"), QStringLiteral("3")},
+            {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q2 Pro"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), QStringLiteral("3"), QStringLiteral("209"), QStringLiteral("627"), QStringLiteral("5")},
+            {QStringLiteral("mx-master-3s.jpg"), QStringLiteral("Logitech MX Anywhere 3S"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), QStringLiteral("10"), QStringLiteral("79"), QStringLiteral("790"), QStringLiteral("4")},
+            {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 32\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), QStringLiteral("3"), QStringLiteral("890"), QStringLiteral("2670"), QStringLiteral("5")},
+            {QStringLiteral("lg-34-ultrawide.jpg"), QStringLiteral("LG 38\" Ultrawide"), QStringLiteral("Peripherals"), QStringLiteral("Ordered"), QStringLiteral("2"), QStringLiteral("1190"), QStringLiteral("2380"), QStringLiteral("5")},
+            {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure SM7B Mic"), QStringLiteral("Audio"), QStringLiteral("In Stock"), QStringLiteral("3"), QStringLiteral("399"), QStringLiteral("1197"), QStringLiteral("5")},
+            {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U6 Pro AP"), QStringLiteral("Network"), QStringLiteral("Retired"), QStringLiteral("5"), QStringLiteral("159"), QStringLiteral("795"), QStringLiteral("4")},
+        };
+    }
 
     pushUndoSnapshot();
     if (!db.transaction()) {
@@ -1225,7 +1359,7 @@ int Backend::createSampleTable() {
     const QString ts = nowIso();
     QSqlQuery q(db);
     q.prepare(QStringLiteral("INSERT INTO tables (name, lifo, record_index, created_at, updated_at) VALUES (?, 1, 0, ?, ?)"));
-    q.addBindValue(tr("Inventory"));
+    q.addBindValue(tableTitle);
     q.addBindValue(ts);
     q.addBindValue(ts);
     if (!q.exec()) {
@@ -1237,33 +1371,26 @@ int Backend::createSampleTable() {
     }
     const int tId = q.lastInsertId().toInt();
 
-    auto insertField = [&](const QString &name, const QString &datatype, const QString &items,
-                           bool obligatoire, bool filtre, const QString &operation, int order, const QString &desc) {
+    QList<int> fieldIds;
+    fieldIds.reserve(fieldDefs.size());
+    for (int idx = 0; idx < fieldDefs.size(); ++idx) {
+        const SampleFieldDef &fd = fieldDefs.at(idx);
         QSqlQuery fq(db);
         fq.prepare(QStringLiteral(
             "INSERT INTO fields (table_id, name, datatype, items, filtre, obligatoire, row_order, operation, description) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"));
         fq.addBindValue(tId);
-        fq.addBindValue(name);
-        fq.addBindValue(datatype);
-        fq.addBindValue(items.isEmpty() ? QStringLiteral("") : items);
-        fq.addBindValue(filtre ? 1 : 0);
-        fq.addBindValue(obligatoire ? 1 : 0);
-        fq.addBindValue(order);
-        fq.addBindValue(operation.isEmpty() ? QStringLiteral("") : operation);
-        fq.addBindValue(desc.isEmpty() ? QStringLiteral("") : desc);
+        fq.addBindValue(fd.name);
+        fq.addBindValue(fd.datatype);
+        fq.addBindValue(fd.items.isEmpty() ? QStringLiteral("") : fd.items);
+        fq.addBindValue(fd.filtre ? 1 : 0);
+        fq.addBindValue(fd.obligatoire ? 1 : 0);
+        fq.addBindValue(idx + 1);
+        fq.addBindValue(fd.operation.isEmpty() ? QStringLiteral("") : fd.operation);
+        fq.addBindValue(fd.desc.isEmpty() ? QStringLiteral("") : fd.desc);
         fq.exec();
-        return fq.lastInsertId().toInt();
-    };
-
-    const int fPhoto = insertField(QStringLiteral("Photo"), QStringLiteral("Image"), {}, false, false, {}, 1, QStringLiteral("Product photo"));
-    const int fItem = insertField(QStringLiteral("Item"), QStringLiteral("Text"), {}, true, false, {}, 2, QStringLiteral("Equipment name"));
-    const int fCat = insertField(QStringLiteral("Category"), QStringLiteral("List"), QStringLiteral("Hardware, Peripherals, Audio, Network"), false, true, {}, 3, QStringLiteral("Asset category"));
-    const int fStatus = insertField(QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("In Stock:green, Low Stock:yellow, Ordered:blue, Retired:gray"), false, true, {}, 4, QStringLiteral("Current stock status"));
-    const int fQty = insertField(QStringLiteral("Qty"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Sum"), 5, QStringLiteral("Units on hand"));
-    const int fPrice = insertField(QStringLiteral("Price"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Average"), 6, QStringLiteral("Unit cost in EUR"));
-    const int fTotal = insertField(QStringLiteral("Total"), QStringLiteral("Formula"), QStringLiteral("[Qty] * [Price]"), false, false, QStringLiteral("Sum"), 7, QStringLiteral("Computed value"));
-    const int fRating = insertField(QStringLiteral("Rating"), QStringLiteral("Stars"), {}, false, false, {}, 8, QStringLiteral("Condition rating 1-5"));
+        fieldIds.append(fq.lastInsertId().toInt());
+    }
 
     QHash<QString, QString> insertedBlobs;
     auto insertSampleBlob = [&](const QString &filename) -> QString {
@@ -1292,66 +1419,22 @@ int Backend::createSampleTable() {
         return ref;
     };
 
-    struct SampleRow {
-        QString photoFile;
-        QString item;
-        QString cat;
-        QString status;
-        int qty;
-        int price;
-        int rating;
-    };
-    const QList<SampleRow> rows = {
-        {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad X1"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 6, 1450, 5},
-        {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q1"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 12, 195, 5},
-        {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure MV7 Mic"), QStringLiteral("Audio"), QStringLiteral("Low Stock"), 2, 260, 4},
-        {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U7 AP"), QStringLiteral("Network"), QStringLiteral("Ordered"), 4, 189, 5},
-        {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 27\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 8, 540, 4},
-        {QStringLiteral("macbook-pro-14.jpg"), QStringLiteral("MacBook Pro 14\""), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 4, 2199, 5},
-        {QStringLiteral("framework-13.jpg"), QStringLiteral("Framework 13"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 5, 1190, 5},
-        {QStringLiteral("mac-studio.jpg"), QStringLiteral("Mac Studio M2"), QStringLiteral("Hardware"), QStringLiteral("Low Stock"), 2, 2299, 5},
-        {QStringLiteral("synology-ds923.jpg"), QStringLiteral("Synology DS923+"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 3, 650, 5},
-        {QStringLiteral("raspberry-pi-5.jpg"), QStringLiteral("Raspberry Pi 5"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 15, 85, 4},
-        {QStringLiteral("mx-master-3s.jpg"), QStringLiteral("Logitech MX Master 3S"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 14, 99, 5},
-        {QStringLiteral("lg-34-ultrawide.jpg"), QStringLiteral("LG 34\" Ultrawide"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), 2, 780, 4},
-        {QStringLiteral("caldigit-ts4.jpg"), QStringLiteral("CalDigit TS4 Dock"), QStringLiteral("Peripherals"), QStringLiteral("Ordered"), 5, 399, 5},
-        {QStringLiteral("thinkpad-x1.jpg"), QStringLiteral("ThinkPad T14s"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 7, 1290, 4},
-        {QStringLiteral("macbook-pro-14.jpg"), QStringLiteral("MacBook Pro 16\""), QStringLiteral("Hardware"), QStringLiteral("Ordered"), 3, 2799, 5},
-        {QStringLiteral("framework-13.jpg"), QStringLiteral("Framework 16"), QStringLiteral("Hardware"), QStringLiteral("Ordered"), 2, 1699, 5},
-        {QStringLiteral("mac-studio.jpg"), QStringLiteral("Mac mini M4"), QStringLiteral("Hardware"), QStringLiteral("In Stock"), 6, 699, 5},
-        {QStringLiteral("synology-ds923.jpg"), QStringLiteral("Synology DS423+"), QStringLiteral("Network"), QStringLiteral("In Stock"), 2, 520, 4},
-        {QStringLiteral("raspberry-pi-5.jpg"), QStringLiteral("Raspberry Pi 4B"), QStringLiteral("Hardware"), QStringLiteral("Retired"), 9, 65, 3},
-        {QStringLiteral("keychron-q1.jpg"), QStringLiteral("Keychron Q2 Pro"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), 3, 209, 5},
-        {QStringLiteral("mx-master-3s.jpg"), QStringLiteral("Logitech MX Anywhere 3S"), QStringLiteral("Peripherals"), QStringLiteral("In Stock"), 10, 79, 4},
-        {QStringLiteral("dell-27-4k.jpg"), QStringLiteral("Dell 32\" 4K"), QStringLiteral("Peripherals"), QStringLiteral("Low Stock"), 3, 890, 5},
-        {QStringLiteral("lg-34-ultrawide.jpg"), QStringLiteral("LG 38\" Ultrawide"), QStringLiteral("Peripherals"), QStringLiteral("Ordered"), 2, 1190, 5},
-        {QStringLiteral("shure-mv7.jpg"), QStringLiteral("Shure SM7B Mic"), QStringLiteral("Audio"), QStringLiteral("In Stock"), 3, 399, 5},
-        {QStringLiteral("ubiquiti-u7-ap.jpg"), QStringLiteral("Ubiquiti U6 Pro AP"), QStringLiteral("Network"), QStringLiteral("Retired"), 5, 159, 4},
-    };
-
     QSqlQuery vq(db);
     vq.prepare(QStringLiteral(
         "INSERT INTO \"values\" (field_id, record_index, data, old_value, created_at, updated_at) "
         "VALUES (?, ?, ?, '', ?, ?)"));
 
-    for (int i = 0; i < rows.size(); ++i) {
+    for (int i = 0; i < sampleRows.size(); ++i) {
         const int recIdx = i + 1;
-        const SampleRow &r = rows.at(i);
-        const QString photoRef = insertSampleBlob(r.photoFile);
-        const QList<QPair<int, QString>> pairs = {
-            {fPhoto, photoRef},
-            {fItem, r.item},
-            {fCat, r.cat},
-            {fStatus, r.status},
-            {fQty, QString::number(r.qty)},
-            {fPrice, QString::number(r.price)},
-            {fTotal, QString::number(r.qty * r.price)},
-            {fRating, QString::number(r.rating)}
-        };
-        for (const auto &p : pairs) {
-            vq.bindValue(0, p.first);
+        const QStringList &row = sampleRows.at(i);
+        const int colCount = std::min(row.size(), fieldIds.size());
+        for (int col = 0; col < colCount; ++col) {
+            QString cellVal = row.at(col);
+            if (fieldDefs.at(col).datatype == QLatin1String("Image") && !cellVal.isEmpty())
+                cellVal = insertSampleBlob(cellVal);
+            vq.bindValue(0, fieldIds.at(col));
             vq.bindValue(1, recIdx);
-            vq.bindValue(2, p.second);
+            vq.bindValue(2, cellVal);
             vq.bindValue(3, ts);
             vq.bindValue(4, ts);
             vq.exec();
@@ -1360,7 +1443,7 @@ int Backend::createSampleTable() {
 
     QSqlQuery uq(db);
     uq.prepare(QStringLiteral("UPDATE tables SET record_index = ? WHERE id = ?"));
-    uq.addBindValue(rows.size());
+    uq.addBindValue(sampleRows.size());
     uq.addBindValue(tId);
     uq.exec();
 
@@ -1381,17 +1464,17 @@ int Backend::createSampleTable() {
     emit filtersChanged();
     emit sortChanged();
     reloadAll();
-    setNotice(tr("Created sample table \"%1\".").arg(tr("Inventory")));
+    setNotice(tr("Created sample table \"%1\".").arg(tableTitle));
     return tId;
 }
 
-void Backend::createSampleTableAsync() {
+void Backend::createSampleTableAsync(const QString &preset) {
     if (m_busy)
         return;
     setBusy(true, tr("Creating sample table…"), -1.0);
     // Yield to the event loop so Qt Quick renders the progress indicator before running SQLite writes.
-    QTimer::singleShot(16, this, [this]() {
-        createSampleTable();
+    QTimer::singleShot(16, this, [this, preset]() {
+        createSampleTable(preset);
         setBusy(false);
     });
 }

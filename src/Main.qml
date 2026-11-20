@@ -19,6 +19,7 @@ ApplicationWindow {
 
     // Modal state
     property bool helpVisible: false
+    property bool sampleDialogVisible: false
     property bool tableDialogVisible: false
     property int editingTableId: 0
     property string tableDialogName: ""
@@ -51,7 +52,7 @@ ApplicationWindow {
     property string imagePreviewMeta: ""
     property real imagePreviewZoom: 1.0
 
-    readonly property bool overlayOpen: helpVisible || tableDialogVisible || fieldsDialogVisible
+    readonly property bool overlayOpen: helpVisible || sampleDialogVisible || tableDialogVisible || fieldsDialogVisible
         || recordDialogVisible || deleteTableConfirmVisible || deleteRecordConfirmVisible
         || discardRecordConfirmVisible || quitConfirmVisible || imagePreviewVisible || backend.busy
     readonly property bool typingInSearch: searchInput.activeFocus
@@ -409,7 +410,7 @@ ApplicationWindow {
     Shortcut {
         sequence: "?"
         context: Qt.ApplicationShortcut
-        enabled: !win.typingInSearch && !win.tableDialogVisible && !win.fieldsDialogVisible && !win.recordDialogVisible && !win.imagePreviewVisible
+        enabled: !win.typingInSearch && !win.sampleDialogVisible && !win.tableDialogVisible && !win.fieldsDialogVisible && !win.recordDialogVisible && !win.imagePreviewVisible
         onActivated: win.helpVisible = !win.helpVisible
     }
     Shortcut {
@@ -425,6 +426,7 @@ ApplicationWindow {
             else if (win.recordDialogVisible) win.closeRecordDialog()
             else if (win.fieldsDialogVisible) win.fieldsDialogVisible = false
             else if (win.tableDialogVisible) win.tableDialogVisible = false
+            else if (win.sampleDialogVisible) win.sampleDialogVisible = false
             else if (win.typingInSearch) {
                 searchInput.focus = false
                 backend.searchText = ""
@@ -818,7 +820,7 @@ ApplicationWindow {
                             HoverHandler { id: sampleBtnHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
                                 enabled: !backend.busy
-                                onTapped: backend.createSampleTableAsync()
+                                onTapped: win.sampleDialogVisible = true
                             }
                         }
                     }
@@ -922,7 +924,7 @@ ApplicationWindow {
                             DialogButton {
                                 text: qsTr("Load sample")
                                 enabled: !backend.busy
-                                onClicked: backend.createSampleTableAsync()
+                                onClicked: win.sampleDialogVisible = true
                             }
                         }
                     }
@@ -3654,6 +3656,181 @@ ApplicationWindow {
                         text: qsTr("Click image to zoom · Scroll to adjust · Esc to close")
                         color: "#8a8a94"
                         font.pixelSize: 11
+                    }
+                }
+            }
+        }
+
+        // --- Sample Table Chooser Modal ---
+        Rectangle {
+            visible: win.sampleDialogVisible
+            anchors.fill: parent
+            color: "#b8000000"
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                preventStealing: true
+                onPressed: (mouse) => { mouse.accepted = true }
+                onClicked: win.sampleDialogVisible = false
+            }
+
+            DialogPanel {
+                id: sampleDialogPanel
+                objectName: "sampleDialogPanel"
+                anchors.centerIn: parent
+                width: Math.min(680, parent.width - 80)
+                height: sampleDialogCol.implicitHeight + 40
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onPressed: (mouse) => { mouse.accepted = true }
+                }
+
+                ColumnLayout {
+                    id: sampleDialogCol
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    spacing: 14
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+
+                            Label {
+                                text: qsTr("Choose a sample table")
+                                color: "white"
+                                font.pixelSize: 17
+                                font.weight: Font.DemiBold
+                            }
+                            Label {
+                                text: qsTr("Pick a ready-made collection with embedded product photos, filters, and totals.")
+                                color: "#9a9aa4"
+                                font.pixelSize: 12
+                            }
+                        }
+
+                        DialogButton {
+                            text: qsTr("Close")
+                            onClicked: win.sampleDialogVisible = false
+                        }
+                    }
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        columnSpacing: 12
+                        rowSpacing: 12
+
+                        Repeater {
+                            model: [
+                                {
+                                    key: "inventory",
+                                    title: qsTr("Inventory"),
+                                    meta: qsTr("25 items · Tech gear, formulas & stock"),
+                                    preview: "qrc:/samples/thinkpad-x1.jpg"
+                                },
+                                {
+                                    key: "flowers",
+                                    title: qsTr("Flowers"),
+                                    meta: qsTr("12 items · Florist catalog, seasons & fragrance"),
+                                    preview: "qrc:/samples/flower-rose.jpg"
+                                },
+                                {
+                                    key: "cars",
+                                    title: qsTr("Cars"),
+                                    meta: qsTr("12 items · Showroom, horsepower & pricing"),
+                                    preview: "qrc:/samples/car-sports.jpg"
+                                },
+                                {
+                                    key: "sportswear",
+                                    title: qsTr("Sportswear"),
+                                    meta: qsTr("12 items · Athletic gear, stock & totals"),
+                                    preview: "qrc:/samples/sport-shoes.jpg"
+                                }
+                            ]
+
+                            Rectangle {
+                                required property var modelData
+                                objectName: "samplePresetCard_" + modelData.key
+                                Layout.fillWidth: true
+                                implicitHeight: 88
+                                height: 88
+                                radius: Math.min(6, theme.radius)
+                                color: presetMouse.containsMouse ? "#20202a" : "#15151b"
+                                border.width: 1
+                                border.color: presetMouse.containsMouse ? theme.accent : "#2c2c36"
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 10
+                                    spacing: 12
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 66
+                                        Layout.preferredHeight: 66
+                                        implicitWidth: 66
+                                        implicitHeight: 66
+                                        radius: Math.min(4, theme.radius)
+                                        color: "#101014"
+                                        border.width: 1
+                                        border.color: "#2e2e38"
+                                        clip: true
+
+                                        Image {
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            source: modelData.preview
+                                            sourceSize.width: 132
+                                            sourceSize.height: 132
+                                            fillMode: Image.PreserveAspectCrop
+                                            smooth: true
+                                            mipmap: true
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.title
+                                            color: presetMouse.containsMouse ? theme.accent : "white"
+                                            font.pixelSize: 14
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.meta
+                                            color: "#9a9aa4"
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: presetMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: (mouse) => {
+                                        mouse.accepted = true
+                                        win.sampleDialogVisible = false
+                                        backend.createSampleTableAsync(modelData.key)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
