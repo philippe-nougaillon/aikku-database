@@ -1307,6 +1307,110 @@ int Backend::createSampleTable(const QString &preset) {
             {QStringLiteral("sport-shoes-coral.jpg"), QStringLiteral("Daily Cushion Runner"), QStringLiteral("Training"), QStringLiteral("In Stock"), QStringLiteral("20"), QStringLiteral("149"), QStringLiteral("2980"), QStringLiteral("5")},
             {QStringLiteral("sport-jacket-forest.jpg"), QStringLiteral("Pine Softshell Hoodie"), QStringLiteral("Training"), QStringLiteral("In Stock"), QStringLiteral("11"), QStringLiteral("219"), QStringLiteral("2409"), QStringLiteral("4")},
         };
+    } else if (key == QLatin1String("projects")) {
+        tableTitle = tr("Projects");
+        fieldDefs = {
+            {QStringLiteral("Project"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Project name")},
+            {QStringLiteral("Client"), QStringLiteral("Text"), {}, false, false, {}, QStringLiteral("Client or sponsor")},
+            {QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("Planning:blue, Active:green, On Hold:yellow, Completed:purple, Archived:gray"), false, true, {}, QStringLiteral("Current phase")},
+            {QStringLiteral("Due Date"), QStringLiteral("Date"), {}, false, true, {}, QStringLiteral("Target delivery date")},
+            {QStringLiteral("Budget"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Allocated budget")},
+            {QStringLiteral("Spent"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Actual spend")},
+            {QStringLiteral("Remaining"), QStringLiteral("Formula"), QStringLiteral("[Budget] - [Spent]"), false, false, QStringLiteral("Sum"), QStringLiteral("Remaining budget")},
+            {QStringLiteral("Priority"), QStringLiteral("Stars"), {}, false, false, {}, QStringLiteral("Priority 1-5")},
+        };
+        sampleRows = {
+            {QStringLiteral("Website Redesign"), QStringLiteral("Acme Studio"), QStringLiteral("Active"), QStringLiteral("2026-12-15"), QStringLiteral("18000"), QStringLiteral("11200"), QStringLiteral("6800"), QStringLiteral("5")},
+            {QStringLiteral("Mobile App v2"), QStringLiteral("Nordic Pay"), QStringLiteral("Active"), QStringLiteral("2027-01-30"), QStringLiteral("42000"), QStringLiteral("24500"), QStringLiteral("17500"), QStringLiteral("5")},
+            {QStringLiteral("Brand Refresh"), QStringLiteral("Maison Lumière"), QStringLiteral("Completed"), QStringLiteral("2026-10-20"), QStringLiteral("12500"), QStringLiteral("11900"), QStringLiteral("600"), QStringLiteral("4")},
+            {QStringLiteral("Cloud Migration"), QStringLiteral("Helios Logistics"), QStringLiteral("Planning"), QStringLiteral("2027-02-28"), QStringLiteral("35000"), QStringLiteral("4500"), QStringLiteral("30500"), QStringLiteral("5")},
+            {QStringLiteral("SEO Audit"), QStringLiteral("GreenLeaf Co"), QStringLiteral("Completed"), QStringLiteral("2026-11-05"), QStringLiteral("4800"), QStringLiteral("4600"), QStringLiteral("200"), QStringLiteral("3")},
+            {QStringLiteral("CRM Integration"), QStringLiteral("Veloce Motors"), QStringLiteral("On Hold"), QStringLiteral("2026-12-31"), QStringLiteral("22000"), QStringLiteral("9800"), QStringLiteral("12200"), QStringLiteral("4")},
+            {QStringLiteral("Design System"), QStringLiteral("Klara Health"), QStringLiteral("Active"), QStringLiteral("2027-01-15"), QStringLiteral("26000"), QStringLiteral("15400"), QStringLiteral("10600"), QStringLiteral("5")},
+            {QStringLiteral("Data Warehouse"), QStringLiteral("Baltic Retail"), QStringLiteral("Planning"), QStringLiteral("2027-03-20"), QStringLiteral("55000"), QStringLiteral("6000"), QStringLiteral("49000"), QStringLiteral("4")},
+            {QStringLiteral("Packaging Line"), QStringLiteral("Atelier Flora"), QStringLiteral("Completed"), QStringLiteral("2026-09-30"), QStringLiteral("9500"), QStringLiteral("9200"), QStringLiteral("300"), QStringLiteral("4")},
+            {QStringLiteral("Internal Portal"), QStringLiteral("Omarchy Labs"), QStringLiteral("Active"), QStringLiteral("2026-12-10"), QStringLiteral("15000"), QStringLiteral("8900"), QStringLiteral("6100"), QStringLiteral("4")},
+        };
+    } else if (key == QLatin1String("tasks")) {
+        tableTitle = tr("Tasks");
+        fieldDefs = {
+            {QStringLiteral("Task"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Task title")},
+            {QStringLiteral("Category"), QStringLiteral("List"), QStringLiteral("Design, Backend, Frontend, Ops, Marketing"), false, true, {}, QStringLiteral("Workstream")},
+            {QStringLiteral("Status"), QStringLiteral("Status"), QStringLiteral("Todo:blue, Doing:yellow, Review:purple, Done:green"), false, true, {}, QStringLiteral("Workflow state")},
+            {QStringLiteral("Due Date"), QStringLiteral("Date"), {}, false, true, {}, QStringLiteral("Target date")},
+            {QStringLiteral("Hours"), QStringLiteral("Number"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Estimated effort")},
+            {QStringLiteral("Tags"), QStringLiteral("Tags"), {}, false, true, {}, QStringLiteral("Comma-separated tags")},
+            {QStringLiteral("Done"), QStringLiteral("YesNo"), {}, false, true, {}, QStringLiteral("Completed flag")},
+            {QStringLiteral("Priority"), QStringLiteral("Stars"), {}, false, false, {}, QStringLiteral("Priority 1-5")},
+        };
+        sampleRows = {
+            {QStringLiteral("Design onboarding flow"), QStringLiteral("Design"), QStringLiteral("Doing"), QStringLiteral("2026-11-24"), QStringLiteral("6"), QStringLiteral("ui, release"), QStringLiteral("false"), QStringLiteral("5")},
+            {QStringLiteral("Optimize SQLite indexes"), QStringLiteral("Backend"), QStringLiteral("Review"), QStringLiteral("2026-11-22"), QStringLiteral("4"), QStringLiteral("perf, db"), QStringLiteral("false"), QStringLiteral("5")},
+            {QStringLiteral("Write API changelog"), QStringLiteral("Marketing"), QStringLiteral("Todo"), QStringLiteral("2026-11-28"), QStringLiteral("2"), QStringLiteral("docs, release"), QStringLiteral("false"), QStringLiteral("3")},
+            {QStringLiteral("Fix dark mode contrast"), QStringLiteral("Frontend"), QStringLiteral("Done"), QStringLiteral("2026-11-18"), QStringLiteral("3"), QStringLiteral("ui, a11y"), QStringLiteral("true"), QStringLiteral("4")},
+            {QStringLiteral("Configure nightly backups"), QStringLiteral("Ops"), QStringLiteral("Done"), QStringLiteral("2026-11-15"), QStringLiteral("5"), QStringLiteral("security, ops"), QStringLiteral("true"), QStringLiteral("5")},
+            {QStringLiteral("Add keyboard cheat sheet"), QStringLiteral("Frontend"), QStringLiteral("Done"), QStringLiteral("2026-11-17"), QStringLiteral("2"), QStringLiteral("ui, docs"), QStringLiteral("true"), QStringLiteral("3")},
+            {QStringLiteral("Audit OAuth token expiry"), QStringLiteral("Backend"), QStringLiteral("Doing"), QStringLiteral("2026-11-23"), QStringLiteral("4"), QStringLiteral("security, urgent"), QStringLiteral("false"), QStringLiteral("5")},
+            {QStringLiteral("Prepare Q4 newsletter"), QStringLiteral("Marketing"), QStringLiteral("Todo"), QStringLiteral("2026-12-01"), QStringLiteral("3"), QStringLiteral("content"), QStringLiteral("false"), QStringLiteral("3")},
+            {QStringLiteral("Upgrade CI build runners"), QStringLiteral("Ops"), QStringLiteral("Review"), QStringLiteral("2026-11-25"), QStringLiteral("6"), QStringLiteral("ops, perf"), QStringLiteral("false"), QStringLiteral("4")},
+            {QStringLiteral("Export PDF invoice layout"), QStringLiteral("Design"), QStringLiteral("Todo"), QStringLiteral("2026-11-29"), QStringLiteral("5"), QStringLiteral("ui, billing"), QStringLiteral("false"), QStringLiteral("4")},
+            {QStringLiteral("Add CSV semicolon detection"), QStringLiteral("Backend"), QStringLiteral("Done"), QStringLiteral("2026-11-14"), QStringLiteral("2"), QStringLiteral("db, release"), QStringLiteral("true"), QStringLiteral("4")},
+            {QStringLiteral("Review accessibility labels"), QStringLiteral("Frontend"), QStringLiteral("Todo"), QStringLiteral("2026-12-03"), QStringLiteral("3"), QStringLiteral("a11y, ui"), QStringLiteral("false"), QStringLiteral("4")},
+        };
+    } else if (key == QLatin1String("customers")) {
+        tableTitle = tr("Customers");
+        fieldDefs = {
+            {QStringLiteral("Company"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Organization name")},
+            {QStringLiteral("Contact"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Primary contact")},
+            {QStringLiteral("Tier"), QStringLiteral("Status"), QStringLiteral("Enterprise:purple, Pro:blue, Active:green, Lead:yellow, Churned:gray"), false, true, {}, QStringLiteral("Account tier")},
+            {QStringLiteral("Country"), QStringLiteral("List"), QStringLiteral("France, Denmark, Germany, USA, UK"), false, true, {}, QStringLiteral("Country")},
+            {QStringLiteral("Email"), QStringLiteral("Email"), {}, false, false, {}, QStringLiteral("Contact email")},
+            {QStringLiteral("Website"), QStringLiteral("URL"), {}, false, false, {}, QStringLiteral("Company website")},
+            {QStringLiteral("Annual Value"), QStringLiteral("Euros"), {}, false, false, QStringLiteral("Sum"), QStringLiteral("Annual contract value")},
+            {QStringLiteral("Active"), QStringLiteral("YesNo"), {}, false, true, {}, QStringLiteral("Active account")},
+        };
+        sampleRows = {
+            {QStringLiteral("Acme Studio"), QStringLiteral("Claire Moreau"), QStringLiteral("Enterprise"), QStringLiteral("France"), QStringLiteral("claire@acmestudio.fr"), QStringLiteral("https://acmestudio.fr"), QStringLiteral("24000"), QStringLiteral("true")},
+            {QStringLiteral("Nordic Pay"), QStringLiteral("Mikkel Jensen"), QStringLiteral("Enterprise"), QStringLiteral("Denmark"), QStringLiteral("mikkel@nordicpay.dk"), QStringLiteral("https://nordicpay.dk"), QStringLiteral("36000"), QStringLiteral("true")},
+            {QStringLiteral("Helios Logistics"), QStringLiteral("Lukas Weber"), QStringLiteral("Pro"), QStringLiteral("Germany"), QStringLiteral("l.weber@helios-log.de"), QStringLiteral("https://helios-log.de"), QStringLiteral("14500"), QStringLiteral("true")},
+            {QStringLiteral("Klara Health"), QStringLiteral("Hannah Lind"), QStringLiteral("Enterprise"), QStringLiteral("Denmark"), QStringLiteral("hannah@klarahealth.dk"), QStringLiteral("https://klarahealth.dk"), QStringLiteral("28500"), QStringLiteral("true")},
+            {QStringLiteral("Maison Lumière"), QStringLiteral("Julien Bernard"), QStringLiteral("Active"), QStringLiteral("France"), QStringLiteral("j.bernard@maisonlumiere.fr"), QStringLiteral("https://maisonlumiere.fr"), QStringLiteral("8400"), QStringLiteral("true")},
+            {QStringLiteral("GreenLeaf Co"), QStringLiteral("Emma Clark"), QStringLiteral("Pro"), QStringLiteral("UK"), QStringLiteral("emma@greenleaf.co.uk"), QStringLiteral("https://greenleaf.co.uk"), QStringLiteral("11200"), QStringLiteral("true")},
+            {QStringLiteral("Veloce Motors"), QStringLiteral("Marco Rossi"), QStringLiteral("Lead"), QStringLiteral("Germany"), QStringLiteral("marco@velocemotors.eu"), QStringLiteral("https://velocemotors.eu"), QStringLiteral("19000"), QStringLiteral("false")},
+            {QStringLiteral("Summit Cloud"), QStringLiteral("David Park"), QStringLiteral("Enterprise"), QStringLiteral("USA"), QStringLiteral("dpark@summitcloud.io"), QStringLiteral("https://summitcloud.io"), QStringLiteral("42000"), QStringLiteral("true")},
+            {QStringLiteral("Atelier Flora"), QStringLiteral("Sophie Laurent"), QStringLiteral("Active"), QStringLiteral("France"), QStringLiteral("sophie@atelierflora.fr"), QStringLiteral("https://atelierflora.fr"), QStringLiteral("6200"), QStringLiteral("true")},
+            {QStringLiteral("NorthStar Media"), QStringLiteral("Oliver Wright"), QStringLiteral("Churned"), QStringLiteral("UK"), QStringLiteral("oliver@northstarmedia.uk"), QStringLiteral("https://northstarmedia.uk"), QStringLiteral("0"), QStringLiteral("false")},
+            {QStringLiteral("Redwood Labs"), QStringLiteral("Maya Patel"), QStringLiteral("Pro"), QStringLiteral("USA"), QStringLiteral("maya@redwoodlabs.com"), QStringLiteral("https://redwoodlabs.com"), QStringLiteral("16800"), QStringLiteral("true")},
+            {QStringLiteral("Baltic Retail"), QStringLiteral("Freja Holm"), QStringLiteral("Lead"), QStringLiteral("Denmark"), QStringLiteral("freja@balticretail.dk"), QStringLiteral("https://balticretail.dk"), QStringLiteral("12000"), QStringLiteral("false")},
+        };
+    } else if (key == QLatin1String("bank_balance")) {
+        tableTitle = tr("Bank Balance");
+        fieldDefs = {
+            {QStringLiteral("Date"), QStringLiteral("Date"), {}, true, true, {}, QStringLiteral("Transaction date")},
+            {QStringLiteral("Description"), QStringLiteral("Text"), {}, true, false, {}, QStringLiteral("Merchant or memo")},
+            {QStringLiteral("Category"), QStringLiteral("List"), QStringLiteral("Salary, Freelance, Rent, Groceries, Utilities, Travel, Dining, Software"), false, true, {}, QStringLiteral("Spending category")},
+            {QStringLiteral("Type"), QStringLiteral("Status"), QStringLiteral("Income:green, Expense:red, Transfer:blue, Savings:purple"), false, true, {}, QStringLiteral("Transaction type")},
+            {QStringLiteral("Amount"), QStringLiteral("Euros"), {}, true, false, QStringLiteral("Sum"), QStringLiteral("Signed amount in EUR")},
+            {QStringLiteral("Cleared"), QStringLiteral("YesNo"), {}, false, true, {}, QStringLiteral("Reconciled with statement")},
+            {QStringLiteral("Tags"), QStringLiteral("Tags"), {}, false, true, {}, QStringLiteral("Optional tags")},
+        };
+        sampleRows = {
+            {QStringLiteral("2026-11-01"), QStringLiteral("Opening Balance"), QStringLiteral("Salary"), QStringLiteral("Transfer"), QStringLiteral("4250.00"), QStringLiteral("true"), QStringLiteral("opening")},
+            {QStringLiteral("2026-11-02"), QStringLiteral("Monthly Salary"), QStringLiteral("Salary"), QStringLiteral("Income"), QStringLiteral("3850.00"), QStringLiteral("true"), QStringLiteral("payroll, recurring")},
+            {QStringLiteral("2026-11-03"), QStringLiteral("Apartment Rent"), QStringLiteral("Rent"), QStringLiteral("Expense"), QStringLiteral("-1250.00"), QStringLiteral("true"), QStringLiteral("housing, recurring")},
+            {QStringLiteral("2026-11-04"), QStringLiteral("Electricity & Fiber"), QStringLiteral("Utilities"), QStringLiteral("Expense"), QStringLiteral("-118.50"), QStringLiteral("true"), QStringLiteral("bills, recurring")},
+            {QStringLiteral("2026-11-05"), QStringLiteral("Organic Market"), QStringLiteral("Groceries"), QStringLiteral("Expense"), QStringLiteral("-94.20"), QStringLiteral("true"), QStringLiteral("food")},
+            {QStringLiteral("2026-11-07"), QStringLiteral("Bistro Le Marais"), QStringLiteral("Dining"), QStringLiteral("Expense"), QStringLiteral("-68.00"), QStringLiteral("true"), QStringLiteral("dining")},
+            {QStringLiteral("2026-11-09"), QStringLiteral("Cloud & Dev Subscriptions"), QStringLiteral("Software"), QStringLiteral("Expense"), QStringLiteral("-49.90"), QStringLiteral("true"), QStringLiteral("saas, recurring")},
+            {QStringLiteral("2026-11-10"), QStringLiteral("Acme Consulting Invoice"), QStringLiteral("Freelance"), QStringLiteral("Income"), QStringLiteral("1200.00"), QStringLiteral("true"), QStringLiteral("client, invoice")},
+            {QStringLiteral("2026-11-11"), QStringLiteral("High-Speed Train Ticket"), QStringLiteral("Travel"), QStringLiteral("Expense"), QStringLiteral("-142.00"), QStringLiteral("true"), QStringLiteral("travel")},
+            {QStringLiteral("2026-11-13"), QStringLiteral("Weekly Groceries"), QStringLiteral("Groceries"), QStringLiteral("Expense"), QStringLiteral("-86.40"), QStringLiteral("true"), QStringLiteral("food")},
+            {QStringLiteral("2026-11-15"), QStringLiteral("Emergency Fund Transfer"), QStringLiteral("Salary"), QStringLiteral("Savings"), QStringLiteral("-500.00"), QStringLiteral("true"), QStringLiteral("savings, recurring")},
+            {QStringLiteral("2026-11-16"), QStringLiteral("Coffee & Bakery"), QStringLiteral("Dining"), QStringLiteral("Expense"), QStringLiteral("-18.50"), QStringLiteral("true"), QStringLiteral("food")},
+            {QStringLiteral("2026-11-18"), QStringLiteral("Design Workshop Fee"), QStringLiteral("Freelance"), QStringLiteral("Income"), QStringLiteral("650.00"), QStringLiteral("true"), QStringLiteral("client")},
+            {QStringLiteral("2026-11-19"), QStringLiteral("Supermarket Run"), QStringLiteral("Groceries"), QStringLiteral("Expense"), QStringLiteral("-112.30"), QStringLiteral("false"), QStringLiteral("food")},
+            {QStringLiteral("2026-11-20"), QStringLiteral("Domain Renewal"), QStringLiteral("Software"), QStringLiteral("Expense"), QStringLiteral("-24.00"), QStringLiteral("false"), QStringLiteral("saas")},
+        };
     } else {
         tableTitle = tr("Inventory");
         fieldDefs = {

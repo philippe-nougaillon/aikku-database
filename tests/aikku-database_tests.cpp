@@ -460,7 +460,29 @@ private slots:
         QCOMPARE(backend.recordCount(), 12);
         QVERIFY(backend.records().first().toMap().value("cells").toList().first().toMap().value("imageUrl").toString().startsWith("image://aikku/"));
 
-        QCOMPARE(backend.tableCount(), 3);
+        QVERIFY(backend.createSampleTable("projects") > 0);
+        QCOMPARE(backend.currentTableName(), QString("Projects"));
+        QCOMPARE(backend.recordCount(), 10);
+        QVERIFY(backend.hasFooterRow());
+
+        QVERIFY(backend.createSampleTable("tasks") > 0);
+        QCOMPARE(backend.currentTableName(), QString("Tasks"));
+        QCOMPARE(backend.recordCount(), 12);
+
+        QVERIFY(backend.createSampleTable("customers") > 0);
+        QCOMPARE(backend.currentTableName(), QString("Customers"));
+        QCOMPARE(backend.recordCount(), 12);
+
+        QVERIFY(backend.createSampleTable("bank_balance") > 0);
+        QCOMPARE(backend.currentTableName(), QString("Bank Balance"));
+        QCOMPARE(backend.recordCount(), 15);
+        QVERIFY(backend.hasFooterRow());
+        // Verify signed income/expense Sum calculates positive net balance accurately.
+        const QVariantMap amountField = backend.fields().at(4).toMap();
+        QCOMPARE(amountField.value("name").toString(), QString("Amount"));
+        QVERIFY(qAbs(amountField.value("footerValue").toDouble() - 7486.20) < 0.01);
+
+        QCOMPARE(backend.tableCount(), 7);
     }
 
     void themeFallsBack() {

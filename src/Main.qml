@@ -3679,8 +3679,8 @@ ApplicationWindow {
                 id: sampleDialogPanel
                 objectName: "sampleDialogPanel"
                 anchors.centerIn: parent
-                width: Math.min(680, parent.width - 80)
-                height: sampleDialogCol.implicitHeight + 40
+                width: Math.min(720, parent.width - 80)
+                height: Math.min(sampleHeaderRow.implicitHeight + sampleGrid.implicitHeight + 54, parent.height - 64)
 
                 MouseArea {
                     anchors.fill: parent
@@ -3695,6 +3695,7 @@ ApplicationWindow {
                     spacing: 14
 
                     RowLayout {
+                        id: sampleHeaderRow
                         Layout.fillWidth: true
                         spacing: 12
 
@@ -3712,7 +3713,7 @@ ApplicationWindow {
                             }
                             Label {
                                 Layout.fillWidth: true
-                                text: qsTr("Pick a ready-made collection with embedded product photos, filters, and totals.")
+                                text: qsTr("Pick a ready-made collection with typed fields, filters, formulas, and totals.")
                                 color: "#9a9aa4"
                                 font.pixelSize: 12
                                 wrapMode: Text.WordWrap
@@ -3727,113 +3728,230 @@ ApplicationWindow {
                         }
                     }
 
-                    GridLayout {
+                    Flickable {
                         Layout.fillWidth: true
-                        columns: 2
-                        columnSpacing: 12
-                        rowSpacing: 12
+                        Layout.fillHeight: true
+                        contentWidth: width
+                        contentHeight: sampleGrid.implicitHeight
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
 
-                        Repeater {
-                            model: [
-                                {
-                                    key: "inventory",
-                                    title: qsTr("Inventory"),
-                                    meta: qsTr("25 items · Tech gear, formulas & stock"),
-                                    preview: "qrc:/samples/thinkpad-x1.jpg"
-                                },
-                                {
-                                    key: "flowers",
-                                    title: qsTr("Flowers"),
-                                    meta: qsTr("12 items · Florist catalog, seasons & fragrance"),
-                                    preview: "qrc:/samples/flower-rose.jpg"
-                                },
-                                {
-                                    key: "cars",
-                                    title: qsTr("Cars"),
-                                    meta: qsTr("12 items · Showroom, horsepower & pricing"),
-                                    preview: "qrc:/samples/car-sports.jpg"
-                                },
-                                {
-                                    key: "sportswear",
-                                    title: qsTr("Sportswear"),
-                                    meta: qsTr("12 items · Athletic gear, stock & totals"),
-                                    preview: "qrc:/samples/sport-shoes.jpg"
-                                }
-                            ]
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
 
-                            Rectangle {
-                                required property var modelData
-                                objectName: "samplePresetCard_" + modelData.key
-                                Layout.fillWidth: true
-                                implicitHeight: 88
-                                height: 88
-                                radius: Math.min(6, theme.radius)
-                                color: presetMouse.containsMouse ? "#20202a" : "#15151b"
-                                border.width: 1
-                                border.color: presetMouse.containsMouse ? theme.accent : "#2c2c36"
+                        GridLayout {
+                            id: sampleGrid
+                            width: parent.width
+                            columns: 2
+                            columnSpacing: 10
+                            rowSpacing: 10
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 10
-                                    spacing: 12
+                            Repeater {
+                                model: [
+                                    {
+                                        key: "inventory",
+                                        title: qsTr("Inventory"),
+                                        meta: qsTr("25 items · Tech gear, photos & formulas"),
+                                        preview: "qrc:/samples/thinkpad-x1.jpg",
+                                        accent: "#facc15",
+                                        bg: "#101014"
+                                    },
+                                    {
+                                        key: "flowers",
+                                        title: qsTr("Flowers"),
+                                        meta: qsTr("12 items · Florist catalog, seasons & fragrance"),
+                                        preview: "qrc:/samples/flower-rose.jpg",
+                                        accent: "#f43f5e",
+                                        bg: "#101014"
+                                    },
+                                    {
+                                        key: "cars",
+                                        title: qsTr("Cars"),
+                                        meta: qsTr("12 items · Showroom, horsepower & pricing"),
+                                        preview: "qrc:/samples/car-sports.jpg",
+                                        accent: "#38bdf8",
+                                        bg: "#101014"
+                                    },
+                                    {
+                                        key: "sportswear",
+                                        title: qsTr("Sportswear"),
+                                        meta: qsTr("12 items · Athletic gear, stock & totals"),
+                                        preview: "qrc:/samples/sport-shoes.jpg",
+                                        accent: "#22c55e",
+                                        bg: "#101014"
+                                    },
+                                    {
+                                        key: "projects",
+                                        title: qsTr("Projects"),
+                                        meta: qsTr("10 items · Deadlines, budgets & remaining"),
+                                        preview: "",
+                                        accent: "#60a5fa",
+                                        bg: "#121a2a"
+                                    },
+                                    {
+                                        key: "tasks",
+                                        title: qsTr("Tasks"),
+                                        meta: qsTr("12 items · Priorities, due dates, tags & done"),
+                                        preview: "",
+                                        accent: "#4ade80",
+                                        bg: "#102119"
+                                    },
+                                    {
+                                        key: "customers",
+                                        title: qsTr("Customers"),
+                                        meta: qsTr("12 items · Contacts, emails, URLs & revenue"),
+                                        preview: "",
+                                        accent: "#c084fc",
+                                        bg: "#1c1528"
+                                    },
+                                    {
+                                        key: "bank_balance",
+                                        title: qsTr("Bank Balance"),
+                                        meta: qsTr("15 items · Income, expenses & net balance"),
+                                        preview: "",
+                                        accent: "#facc15",
+                                        bg: "#211d11"
+                                    }
+                                ]
 
-                                    Rectangle {
-                                        Layout.preferredWidth: 66
-                                        Layout.preferredHeight: 66
-                                        implicitWidth: 66
-                                        implicitHeight: 66
-                                        radius: Math.min(4, theme.radius)
-                                        color: "#101014"
-                                        border.width: 1
-                                        border.color: "#2e2e38"
-                                        clip: true
+                                Rectangle {
+                                    required property var modelData
+                                    objectName: "samplePresetCard_" + modelData.key
+                                    Layout.fillWidth: true
+                                    implicitHeight: 78
+                                    height: 78
+                                    radius: Math.min(6, theme.radius)
+                                    color: presetMouse.containsMouse ? "#20202a" : "#15151b"
+                                    border.width: 1
+                                    border.color: presetMouse.containsMouse ? theme.accent : "#2c2c36"
 
-                                        Image {
-                                            anchors.fill: parent
-                                            anchors.margins: 1
-                                            source: modelData.preview
-                                            sourceSize.width: 132
-                                            sourceSize.height: 132
-                                            fillMode: Image.PreserveAspectCrop
-                                            smooth: true
-                                            mipmap: true
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 10
+                                        spacing: 12
+
+                                        Rectangle {
+                                            Layout.preferredWidth: 58
+                                            Layout.preferredHeight: 58
+                                            implicitWidth: 58
+                                            implicitHeight: 58
+                                            radius: Math.min(4, theme.radius)
+                                            color: modelData.bg
+                                            border.width: 1
+                                            border.color: modelData.preview !== "" ? "#2e2e38" : Qt.rgba(Qt.color(modelData.accent).r, Qt.color(modelData.accent).g, Qt.color(modelData.accent).b, 0.35)
+                                            clip: true
+
+                                            Image {
+                                                visible: modelData.preview !== ""
+                                                anchors.fill: parent
+                                                anchors.margins: 1
+                                                source: modelData.preview
+                                                sourceSize.width: 116
+                                                sourceSize.height: 116
+                                                fillMode: Image.PreserveAspectCrop
+                                                smooth: true
+                                                mipmap: true
+                                            }
+
+                                            // Geometric icon for Projects (Gantt bars)
+                                            Column {
+                                                visible: modelData.key === "projects"
+                                                anchors.centerIn: parent
+                                                spacing: 6
+                                                Rectangle { width: 32; height: 5; radius: 2.5; color: modelData.accent }
+                                                Rectangle { x: 8; width: 26; height: 5; radius: 2.5; color: modelData.accent; opacity: 0.78 }
+                                                Rectangle { x: 4; width: 22; height: 5; radius: 2.5; color: modelData.accent; opacity: 0.55 }
+                                            }
+
+                                            // Geometric icon for Tasks (checklist rows)
+                                            Column {
+                                                visible: modelData.key === "tasks"
+                                                anchors.centerIn: parent
+                                                spacing: 6
+                                                Repeater {
+                                                    model: 3
+                                                    Row {
+                                                        required property int index
+                                                        spacing: 5
+                                                        Rectangle {
+                                                            width: 7; height: 7; radius: 2
+                                                            color: index < 2 ? modelData.accent : "transparent"
+                                                            border.width: 1.5; border.color: modelData.accent
+                                                        }
+                                                        Rectangle {
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            width: index === 1 ? 18 : 22; height: 3; radius: 1.5
+                                                            color: modelData.accent; opacity: index < 2 ? 0.85 : 0.45
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Geometric icon for Customers (user profile silhouette)
+                                            Item {
+                                                visible: modelData.key === "customers"
+                                                anchors.centerIn: parent
+                                                width: 34; height: 34
+                                                Rectangle {
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    y: 3; width: 12; height: 12; radius: 6
+                                                    color: modelData.accent
+                                                }
+                                                Rectangle {
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    y: 18; width: 24; height: 13; radius: 6
+                                                    color: modelData.accent; opacity: 0.82
+                                                }
+                                            }
+
+                                            // Geometric icon for Bank Balance (ledger chart + €)
+                                            Row {
+                                                visible: modelData.key === "bank_balance"
+                                                anchors.centerIn: parent
+                                                spacing: 4
+                                                Rectangle { anchors.bottom: parent.bottom; width: 5; height: 12; radius: 1.5; color: modelData.accent; opacity: 0.5 }
+                                                Rectangle { anchors.bottom: parent.bottom; width: 5; height: 19; radius: 1.5; color: modelData.accent; opacity: 0.72 }
+                                                Rectangle { anchors.bottom: parent.bottom; width: 5; height: 15; radius: 1.5; color: modelData.accent; opacity: 0.62 }
+                                                Rectangle { anchors.bottom: parent.bottom; width: 5; height: 26; radius: 1.5; color: modelData.accent }
+                                            }
+                                        }
+
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 3
+
+                                            Label {
+                                                Layout.fillWidth: true
+                                                text: modelData.title
+                                                color: presetMouse.containsMouse ? theme.accent : "white"
+                                                font.pixelSize: 14
+                                                font.weight: Font.DemiBold
+                                                elide: Text.ElideRight
+                                            }
+
+                                            Label {
+                                                Layout.fillWidth: true
+                                                text: modelData.meta
+                                                color: "#9a9aa4"
+                                                font.pixelSize: 11
+                                                wrapMode: Text.WordWrap
+                                                maximumLineCount: 2
+                                                elide: Text.ElideRight
+                                            }
                                         }
                                     }
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 4
-
-                                        Label {
-                                            Layout.fillWidth: true
-                                            text: modelData.title
-                                            color: presetMouse.containsMouse ? theme.accent : "white"
-                                            font.pixelSize: 14
-                                            font.weight: Font.DemiBold
-                                            elide: Text.ElideRight
+                                    MouseArea {
+                                        id: presetMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => {
+                                            mouse.accepted = true
+                                            win.sampleDialogVisible = false
+                                            backend.createSampleTableAsync(modelData.key)
                                         }
-
-                                        Label {
-                                            Layout.fillWidth: true
-                                            text: modelData.meta
-                                            color: "#9a9aa4"
-                                            font.pixelSize: 11
-                                            wrapMode: Text.WordWrap
-                                            maximumLineCount: 2
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: presetMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: (mouse) => {
-                                        mouse.accepted = true
-                                        win.sampleDialogVisible = false
-                                        backend.createSampleTableAsync(modelData.key)
                                     }
                                 }
                             }
