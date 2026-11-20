@@ -18,13 +18,30 @@ A keyboard-first custom SQLite tables and collections manager for Omarchy, inspi
 - **Single SQLite Database**: Stores all tables, fields, values, and embedded image/file blobs in `~/.local/share/aikku-database/aikku-database.sqlite` (or any `.sqlite` file passed on the command line or opened via the XDG desktop portal).
 - **Omarchy Native**: Follows the Omarchy accent color, Hyprland window rounding, and system language live (English, French, Danish).
 
+## Sample Collections
+
+Click **Sample table** (or **Load sample** when empty) to choose from 8 ready-made collections:
+
+| Collection | Records | Highlights |
+| --- | :---: | --- |
+| **Inventory** | 25 | Bundled product photos (`Image`), categories, status badges, `[Qty] * [Price]` formula, `Stars`, footer `Sum` / `Average` |
+| **Flowers** | 12 | Botanical studio photos (`Image`), blooming seasons, availability badges, `[Stems] * [Price]` formula, fragrance `Stars` |
+| **Cars** | 12 | Showroom vehicle photos (`Image`), body styles, status badges, model year, horsepower `Average`, total value `Sum` |
+| **Sportswear** | 12 | Athletic gear photos (`Image`), sport categories, stock status, `[Stock] * [Price]` formula, customer `Stars` |
+| **Projects** | 10 | Client tracking, status phases, `Due Date` range filter, `Budget` / `Spent`, `[Budget] - [Spent]` `Remaining` formula |
+| **Tasks** | 12 | Workstream categories, workflow status, `Due Date` range filter, `Hours` sum, `Tags` quick filter, `Done` (`Yes / No`) |
+| **Customers** | 12 | Accounts & contacts, tier badges, country filter, `Email`, `Website` (`URL`), `Annual Value` sum, `Active` (`Yes / No`) |
+| **Bank Balance** | 15 | `Date` range filter, categories, `Income` / `Expense` / `Transfer` / `Savings` pills, signed `Amount` with live net balance `Sum`, `Cleared` (`Yes / No`), `Tags` |
+
 ## Screenshots
 
-| Sample Table Chooser | Click-to-Zoom Image Preview |
+| Sample Table Chooser (8 Presets) | Click-to-Zoom Image Preview |
 | :---: | :---: |
 | ![Sample Table Chooser](screenshots/sample-chooser.png) | ![Click-to-Zoom Image Preview](screenshots/image-preview.png) |
 | **Dynamic Record Form (Image & PDF File Fields)** | **Flowers Sample Collection** |
 | ![Dynamic Record Form](screenshots/record-form.png) | ![Flowers Sample Collection](screenshots/flowers-table.png) |
+| **Projects (Budgets, Due Dates & Formulas)** | **Bank Balance (Date Filter, Signed Euros & Net Sum)** |
+| ![Projects Sample Collection](screenshots/projects-table.png) | ![Bank Balance Sample Collection](screenshots/bank-balance.png) |
 
 ## Keyboard Shortcuts
 
