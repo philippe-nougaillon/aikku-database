@@ -38,6 +38,8 @@ Click **Sample table** (or **Load sample** when empty) to choose from 8 ready-ma
 | Sample Table Chooser (8 Presets) | Click-to-Zoom Image Preview |
 | :---: | :---: |
 | ![Sample Table Chooser](screenshots/sample-chooser.png) | ![Click-to-Zoom Image Preview](screenshots/image-preview.png) |
+| **Create a New Table (Step 1)** | **Define Table Attributes (Step 2: Types, Formulas & Relations)** |
+| ![Create a New Table](screenshots/new-table.png) | ![Define Table Attributes](screenshots/table-attributes.png) |
 | **Dynamic Record Form (Image & PDF File Fields)** | **Sportswear Sample Collection** |
 | ![Dynamic Record Form](screenshots/record-form.png) | ![Sportswear Sample Collection](screenshots/sportswear-table.png) |
 | **Projects (Budgets, Due Dates & Formulas)** | **Bank Balance (Date Filter, Signed Euros & Net Sum)** |
